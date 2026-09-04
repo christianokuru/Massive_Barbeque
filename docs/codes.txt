@@ -1,0 +1,1189 @@
+# Kylva Nuxt 4 - Complete Codebase
+
+This document contains all the source code for the Kylva Nuxt 4 project.
+
+---
+
+## app/assets/css/main.css
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+@import 'tailwindcss' source(none);
+@source '../**/*.{vue,js,ts}';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+```
+
+---
+
+## app/composables/useInView.ts
+
+```typescript
+export const useInView = (options: IntersectionObserverInit = {}) => {
+  const isInView = ref(false)
+  const targetRef = ref<HTMLElement | null>(null)
+
+  onMounted(() => {
+    if (!targetRef.value) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          isInView.value = true
+        }
+      },
+      {
+        threshold: options.threshold || 0.1,
+        rootMargin: options.rootMargin || '0px',
+      }
+    )
+
+    observer.observe(targetRef.value)
+
+    onUnmounted(() => {
+      if (targetRef.value) {
+        observer.unobserve(targetRef.value)
+      }
+    })
+  })
+
+  return {
+    targetRef,
+    isInView,
+  }
+}
+```
+
+---
+
+## app/components/custom/general/Logo.vue
+
+```vue
+<script setup lang="ts">
+const props = defineProps<{
+  variant?: 'white' | 'black'
+}>()
+
+const fillColor = computed(() => props.variant === 'black' ? '#000000' : '#FFFFFF')
+</script>
+
+<template>
+  <svg 
+    width="120" 
+    height="32" 
+    viewBox="0 0 120 32" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-8"
+  >
+    <text
+      x="0"
+      y="24"
+      :fill="fillColor"
+      font-family="Cormorant Garamond, serif"
+      font-size="28"
+      font-weight="300"
+      letter-spacing="0.1em"
+    >
+      KYLVA
+    </text>
+  </svg>
+</template>
+```
+
+---
+
+## app/components/custom/general/Navbar.vue
+
+```vue
+<script setup lang="ts">
+const scrolled = ref(false)
+
+const scrollToSection = (id: string) => {
+  const element = document.getElementById(id)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+
+onMounted(() => {
+  const handleScroll = () => {
+    scrolled.value = window.scrollY > 50
+  }
+  
+  window.addEventListener('scroll', handleScroll)
+  
+  onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll)
+  })
+})
+</script>
+
+<template>
+  <nav
+    :class="[
+      'fixed top-0 left-0 right-0 z-50 transition-all duration-500',
+      scrolled ? 'bg-white/95 backdrop-blur-sm shadow-sm' : 'bg-black/20 backdrop-blur-sm'
+    ]"
+    v-motion
+    :initial="{ y: -100 }"
+    :enter="{ y: 0, transition: { duration: 600, ease: 'easeOut' } }"
+  >
+    <div class="max-w-7xl mx-auto px-6 lg:px-12 py-6 flex items-center justify-between">
+      <button
+        @click="scrollToSection('hero')"
+        class="flex items-center"
+        v-motion
+        :hover="{ scale: 1.02, transition: { duration: 200 } }"
+      >
+        <Logo :variant="scrolled ? 'black' : 'white'" />
+      </button>
+
+      <div class="hidden md:flex items-center gap-12">
+        <button
+          v-for="item in ['services', 'about', 'work', 'testimonials', 'contact']"
+          :key="item"
+          @click="scrollToSection(item)"
+          :class="[
+            'text-sm uppercase tracking-[0.2em] transition-colors',
+            scrolled ? 'text-gray-800 hover:text-gray-600' : 'text-white hover:text-gray-300'
+          ]"
+          style="font-family: 'Inter', sans-serif; font-weight: 400"
+          v-motion
+          :hover="{ y: -2, transition: { duration: 200 } }"
+        >
+          {{ item }}
+        </button>
+      </div>
+
+      <button
+        @click="scrollToSection('contact')"
+        :class="[
+          'hidden lg:block px-8 py-3 text-xs uppercase tracking-[0.2em] transition-colors',
+          scrolled
+            ? 'bg-black text-white hover:bg-gray-900'
+            : 'bg-white text-black hover:bg-gray-100'
+        ]"
+        style="font-family: 'Inter', sans-serif; font-weight: 500"
+        v-motion
+        :hover="{ scale: 1.05, transition: { duration: 200 } }"
+        :tap="{ scale: 0.95 }"
+      >
+        Start Project
+      </button>
+    </div>
+  </nav>
+</template>
+```
+
+---
+
+## app/components/custom/general/Footer.vue
+
+```vue
+<script setup lang="ts">
+const currentYear = new Date().getFullYear()
+
+const scrollToSection = (id: string) => {
+  const element = document.getElementById(id)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+</script>
+
+<template>
+  <footer class="bg-black text-white py-16 px-6 lg:px-12">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid md:grid-cols-3 gap-12 mb-16">
+        <div>
+          <Logo variant="white" class="mb-6" />
+          <p
+            class="text-gray-400 text-sm leading-relaxed"
+            style="font-family: 'Inter', sans-serif; font-weight: 300"
+          >
+            Crafting exceptional e-commerce experiences for luxury fashion and beauty brands.
+          </p>
+        </div>
+
+        <div>
+          <h3
+            class="text-xs uppercase tracking-[0.3em] mb-6"
+            style="font-family: 'Inter', sans-serif; font-weight: 500"
+          >
+            Quick Links
+          </h3>
+          <ul class="space-y-3">
+            <li v-for="link in ['Services', 'About', 'Work', 'Testimonials', 'Contact']" :key="link">
+              <button
+                @click="scrollToSection(link.toLowerCase())"
+                class="text-gray-400 hover:text-white transition-colors text-sm"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+                v-motion
+                :hover="{ x: 5 }"
+              >
+                {{ link }}
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h3
+            class="text-xs uppercase tracking-[0.3em] mb-6"
+            style="font-family: 'Inter', sans-serif; font-weight: 500"
+          >
+            Connect
+          </h3>
+          <ul class="space-y-3">
+            <li>
+              <a
+                href="mailto:hello@kylva.studio"
+                class="text-gray-400 hover:text-white transition-colors text-sm"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              >
+                hello@kylva.studio
+              </a>
+            </li>
+            <li>
+              <a
+                href="tel:+1234567890"
+                class="text-gray-400 hover:text-white transition-colors text-sm"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              >
+                +1 (234) 567-890
+              </a>
+            </li>
+          </ul>
+
+          <div class="flex gap-4 mt-6">
+            <a
+              v-for="social in ['Instagram', 'LinkedIn', 'Behance']"
+              :key="social"
+              href="#"
+              class="text-xs uppercase tracking-[0.2em] text-gray-400 hover:text-[#D4AF37] transition-colors"
+              style="font-family: 'Inter', sans-serif; font-weight: 400"
+              v-motion
+              :hover="{ y: -3 }"
+            >
+              {{ social }}
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p
+          class="text-xs text-gray-500"
+          style="font-family: 'Inter', sans-serif; font-weight: 300"
+        >
+          © {{ currentYear }} Kylva. All rights reserved.
+        </p>
+        <div class="flex gap-8">
+          <a
+            href="#"
+            class="text-xs text-gray-500 hover:text-white transition-colors uppercase tracking-[0.2em]"
+            style="font-family: 'Inter', sans-serif; font-weight: 300"
+          >
+            Privacy Policy
+          </a>
+          <a
+            href="#"
+            class="text-xs text-gray-500 hover:text-white transition-colors uppercase tracking-[0.2em]"
+            style="font-family: 'Inter', sans-serif; font-weight: 300"
+          >
+            Terms of Service
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+</template>
+```
+
+---
+
+## app/components/custom/Home/Hero.vue
+
+```vue
+<script setup lang="ts">
+const scrollToSection = (id: string) => {
+  const element = document.getElementById(id)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+</script>
+
+<template>
+  <section id="hero" class="relative h-screen flex items-center justify-center overflow-hidden bg-[#fafaf9]">
+    <div
+      class="absolute inset-0"
+      v-motion
+      :initial="{ scale: 1.1, opacity: 0 }"
+      :enter="{ scale: 1, opacity: 0.15, transition: { duration: 1500, ease: 'easeOut' } }"
+    >
+      <img
+        src="https://images.unsplash.com/photo-1745284504942-2eb53650360a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwbHV4dXJ5JTIwZmFzaGlvbnxlbnwxfHx8fDE3Njc3MjU5NDJ8MA&ixlib=rb-4.1.0&q=80&w=1080"
+        alt=""
+        class="w-full h-full object-cover"
+      />
+    </div>
+
+    <div class="relative z-10 max-w-6xl mx-auto px-6 lg:px-12 text-center">
+      <div
+        v-motion
+        :initial="{ opacity: 0, y: 40 }"
+        :enter="{ opacity: 1, y: 0, transition: { duration: 800, delay: 300 } }"
+      >
+        <h1
+          class="text-7xl md:text-8xl lg:text-9xl mb-8 tracking-tight"
+          style="font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.1"
+        >
+          Crafting Digital
+          <br />
+          <span class="italic" style="font-weight: 400">Elegance</span>
+        </h1>
+      </div>
+
+      <p
+        class="text-base md:text-lg text-gray-600 mb-12 max-w-2xl mx-auto tracking-wide"
+        style="font-family: 'Inter', sans-serif; font-weight: 300"
+        v-motion
+        :initial="{ opacity: 0, y: 30 }"
+        :enter="{ opacity: 1, y: 0, transition: { duration: 800, delay: 500 } }"
+      >
+        We build exceptional e-commerce experiences exclusively for luxury fashion and beauty brands
+      </p>
+
+      <div
+        class="flex flex-col sm:flex-row items-center justify-center gap-6"
+        v-motion
+        :initial="{ opacity: 0, y: 20 }"
+        :enter="{ opacity: 1, y: 0, transition: { duration: 800, delay: 700 } }"
+      >
+        <button
+          @click="scrollToSection('contact')"
+          class="px-12 py-5 bg-black text-white text-sm uppercase tracking-[0.3em] transition-all"
+          style="font-family: 'Inter', sans-serif; font-weight: 500"
+          v-motion
+          :hover="{ scale: 1.05, backgroundColor: '#000' }"
+          :tap="{ scale: 0.95 }"
+        >
+          Begin Your Journey
+        </button>
+
+        <button
+          @click="scrollToSection('work')"
+          class="text-sm uppercase tracking-[0.3em] text-gray-700 flex items-center gap-3 group"
+          style="font-family: 'Inter', sans-serif; font-weight: 400"
+          v-motion
+          :hover="{ x: 5 }"
+        >
+          View Our Work
+          <span class="transform group-hover:translate-x-1 transition-transform">→</span>
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="absolute bottom-12 left-1/2 transform -translate-x-1/2"
+      v-motion
+      :initial="{ opacity: 0 }"
+      :enter="{ opacity: 1, transition: { duration: 1000, delay: 1200 } }"
+    >
+      <div
+        class="flex flex-col items-center gap-2"
+        v-motion
+        :animate="{ y: [0, 10, 0], transition: { duration: 2000, repeat: Infinity, ease: 'easeInOut' } }"
+      >
+        <span class="text-xs uppercase tracking-[0.3em] text-gray-400" style="font-family: 'Inter', sans-serif">
+          Scroll
+        </span>
+        <div class="w-px h-16 bg-gradient-to-b from-gray-400 to-transparent" />
+      </div>
+    </div>
+  </section>
+</template>
+```
+
+---
+
+## app/components/custom/Home/Services.vue
+
+```vue
+<script setup lang="ts">
+const { targetRef, isInView } = useInView({ threshold: 0.2 })
+
+const services = [
+  {
+    number: "01",
+    title: "Fashion E-Commerce",
+    description: "Bespoke online stores that embody the essence of luxury fashion. From haute couture to contemporary brands, we create digital experiences that mirror the sophistication of your collections.",
+    features: ["Custom Design Systems", "Product Showcases", "Seamless Checkout"],
+  },
+  {
+    number: "02",
+    title: "Beauty Platforms",
+    description: "Elegant e-commerce solutions for beauty and cosmetics brands. We craft immersive experiences that highlight your products' luxury and effectiveness with refined detail.",
+    features: ["Interactive Product Views", "Shade Matching", "Subscription Systems"],
+  },
+  {
+    number: "03",
+    title: "Brand Experience",
+    description: "More than just a store—a complete digital identity. We develop cohesive experiences that tell your brand's story and connect with discerning customers on a deeper level.",
+    features: ["Brand Storytelling", "Editorial Layouts", "Luxury UI/UX"],
+  },
+]
+</script>
+
+<template>
+  <section id="services" ref="targetRef" class="py-32 px-6 lg:px-12 bg-white">
+    <div class="max-w-7xl mx-auto">
+      <div
+        class="mb-24"
+        v-motion
+        :initial="{ opacity: 0, y: 40 }"
+        :visible-once="{ opacity: 1, y: 0, transition: { duration: 800 } }"
+      >
+        <p class="text-xs uppercase tracking-[0.4em] text-[#D4AF37] mb-4" style="font-family: 'Inter', sans-serif">
+          What We Do
+        </p>
+        <h2
+          class="text-6xl md:text-7xl lg:text-8xl tracking-tight"
+          style="font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.1"
+        >
+          Specialized in
+          <br />
+          <span class="italic" style="font-weight: 400">Luxury Digital</span>
+        </h2>
+      </div>
+
+      <div class="space-y-24">
+        <div
+          v-for="(service, index) in services"
+          :key="service.number"
+          class="grid md:grid-cols-12 gap-8 md:gap-12 border-t border-gray-200 pt-12"
+          v-motion
+          :initial="{ opacity: 0, y: 60 }"
+          :visible-once="{ opacity: 1, y: 0, transition: { duration: 800, delay: index * 200 } }"
+        >
+          <div class="md:col-span-2">
+            <span
+              class="text-6xl text-gray-200"
+              style="font-family: 'Cormorant Garamond', serif; font-weight: 300"
+            >
+              {{ service.number }}
+            </span>
+          </div>
+
+          <div class="md:col-span-6">
+            <h3
+              class="text-4xl md:text-5xl mb-6 tracking-tight"
+              style="font-family: 'Cormorant Garamond', serif; font-weight: 400"
+            >
+              {{ service.title }}
+            </h3>
+            <p
+              class="text-gray-600 leading-relaxed text-lg"
+              style="font-family: 'Inter', sans-serif; font-weight: 300"
+            >
+              {{ service.description }}
+            </p>
+          </div>
+
+          <div class="md:col-span-4">
+            <ul class="space-y-4">
+              <li
+                v-for="feature in service.features"
+                :key="feature"
+                class="flex items-center gap-3 text-sm uppercase tracking-[0.2em]"
+                style="font-family: 'Inter', sans-serif; font-weight: 400"
+              >
+                <span class="w-8 h-px bg-[#D4AF37]" />
+                {{ feature }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+```
+
+---
+
+## app/components/custom/Home/About.vue
+
+```vue
+<script setup lang="ts">
+const { targetRef, isInView } = useInView({ threshold: 0.3 })
+</script>
+
+<template>
+  <section id="about" ref="targetRef" class="py-32 px-6 lg:px-12 bg-[#fafaf9]">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+        <div
+          class="relative h-[600px] overflow-hidden"
+          v-motion
+          :initial="{ opacity: 0, x: -60 }"
+          :visible-once="{ opacity: 1, x: 0, transition: { duration: 1000, ease: 'easeOut' } }"
+        >
+          <img
+            src="https://images.unsplash.com/photo-1580656940647-8854a00547f0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBmYXNoaW9uJTIwc3RvcmV8ZW58MXx8fHwxNzY3NjQ1ODE1fDA&ixlib=rb-4.1.0&q=80&w=1080"
+            alt="Luxury store interior"
+            class="w-full h-full object-cover transition-transform duration-600 hover:scale-105"
+          />
+        </div>
+
+        <div
+          v-motion
+          :initial="{ opacity: 0, x: 60 }"
+          :visible-once="{ opacity: 1, x: 0, transition: { duration: 1000, ease: 'easeOut', delay: 200 } }"
+        >
+          <p class="text-xs uppercase tracking-[0.4em] text-[#D4AF37] mb-6" style="font-family: 'Inter', sans-serif">
+            About Kylva
+          </p>
+
+          <h2
+            class="text-5xl md:text-6xl lg:text-7xl mb-8 tracking-tight"
+            style="font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.1"
+          >
+            Where <span class="italic" style="font-weight: 400">Luxury</span>
+            <br />
+            Meets Technology
+          </h2>
+
+          <div class="space-y-6 text-gray-600 text-lg leading-relaxed" style="font-family: 'Inter', sans-serif; font-weight: 300">
+            <p>
+              Kylva was born from a singular vision: to create digital experiences that match the sophistication and elegance of the world's finest fashion and beauty brands.
+            </p>
+
+            <p>
+              We understand that luxury isn't just about aesthetics—it's about feeling, experience, and attention to every minute detail. That's why we exclusively focus on fashion and beauty e-commerce, bringing unparalleled expertise to an industry that demands perfection.
+            </p>
+
+            <p>
+              Our approach combines minimalist design principles with cutting-edge technology, creating platforms that are as functional as they are beautiful. Every line of code, every pixel, every interaction is crafted with the same care your brand puts into its products.
+            </p>
+          </div>
+
+          <div
+            class="mt-12 inline-flex items-center gap-3 text-sm uppercase tracking-[0.3em] cursor-pointer group"
+            style="font-family: 'Inter', sans-serif; font-weight: 500"
+            v-motion
+            :hover="{ x: 5 }"
+          >
+            Learn More About Our Process
+            <span class="transform group-hover:translate-x-1 transition-transform text-[#D4AF37]">→</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+```
+
+---
+
+## app/components/custom/Home/Work.vue
+
+```vue
+<script setup lang="ts">
+const { targetRef, isInView } = useInView({ threshold: 0.1 })
+
+const projects = [
+  {
+    title: "Maison Noir",
+    category: "Fashion E-Commerce",
+    image: "https://images.unsplash.com/photo-1611747581894-45e5f11c7be6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxibGFjayUyMHdoaXRlJTIwZmFzaGlvbnxlbnwxfHx8fDE3Njc2MjA0NTF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+    description: "Contemporary fashion redefined through minimalist digital experience",
+  },
+  {
+    title: "Lumière Beauty",
+    category: "Beauty Platform",
+    image: "https://images.unsplash.com/photo-1739980296455-3f8d6051ca20?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwYmVhdXR5JTIwY29zbWV0aWNzfGVufDF8fHx8MTc2NzczNDA1N3ww&ixlib=rb-4.1.0&q=80&w=1080",
+    description: "Luxury cosmetics platform with interactive product discovery",
+  },
+  {
+    title: "Essence",
+    category: "Fragrance Store",
+    image: "https://images.unsplash.com/photo-1762751629196-1d9a874cdf92?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwcGVyZnVtZSUyMGJvdHRsZXxlbnwxfHx8fDE3Njc2NDE3MjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+    description: "Artisanal perfume brand brought to life through elegant storytelling",
+  },
+]
+</script>
+
+<template>
+  <section id="work" ref="targetRef" class="py-32 px-6 lg:px-12 bg-black text-white">
+    <div class="max-w-7xl mx-auto">
+      <div
+        class="mb-24"
+        v-motion
+        :initial="{ opacity: 0, y: 40 }"
+        :visible-once="{ opacity: 1, y: 0, transition: { duration: 800 } }"
+      >
+        <p class="text-xs uppercase tracking-[0.4em] text-[#D4AF37] mb-4" style="font-family: 'Inter', sans-serif">
+          Selected Projects
+        </p>
+        <h2
+          class="text-6xl md:text-7xl lg:text-8xl tracking-tight"
+          style="font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.1"
+        >
+          Our <span class="italic" style="font-weight: 400">Portfolio</span>
+        </h2>
+      </div>
+
+      <div class="space-y-32">
+        <div
+          v-for="(project, index) in projects"
+          :key="project.title"
+          class="group cursor-pointer"
+          v-motion
+          :initial="{ opacity: 0, y: 80 }"
+          :visible-once="{ opacity: 1, y: 0, transition: { duration: 1000, delay: index * 200 } }"
+        >
+          <div class="relative h-[500px] md:h-[600px] lg:h-[700px] overflow-hidden mb-8">
+            <img
+              :src="project.image"
+              :alt="project.title"
+              class="w-full h-full object-cover transition-transform duration-600 group-hover:scale-105"
+            />
+
+            <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-500" />
+          </div>
+
+          <div class="grid md:grid-cols-12 gap-6">
+            <div class="md:col-span-8">
+              <h3
+                class="text-4xl md:text-5xl lg:text-6xl mb-4 tracking-tight group-hover:text-[#D4AF37] transition-colors duration-300"
+                style="font-family: 'Cormorant Garamond', serif; font-weight: 400"
+              >
+                {{ project.title }}
+              </h3>
+              <p
+                class="text-gray-400 text-lg leading-relaxed"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              >
+                {{ project.description }}
+              </p>
+            </div>
+
+            <div class="md:col-span-4 flex items-start justify-end">
+              <span
+                class="text-sm uppercase tracking-[0.2em] text-gray-500"
+                style="font-family: 'Inter', sans-serif; font-weight: 400"
+              >
+                {{ project.category }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="mt-32 text-center"
+        v-motion
+        :initial="{ opacity: 0 }"
+        :visible-once="{ opacity: 1, transition: { duration: 800, delay: 800 } }"
+      >
+        <button
+          class="px-12 py-5 border border-white text-white text-sm uppercase tracking-[0.3em] hover:bg-white hover:text-black transition-all duration-300"
+          style="font-family: 'Inter', sans-serif; font-weight: 500"
+          v-motion
+          :hover="{ scale: 1.05 }"
+          :tap="{ scale: 0.95 }"
+        >
+          View All Projects
+        </button>
+      </div>
+    </div>
+  </section>
+</template>
+```
+
+---
+
+## app/components/custom/Home/Testimonials.vue
+
+```vue
+<script setup lang="ts">
+const { targetRef, isInView } = useInView({ threshold: 0.2 })
+
+const testimonials = [
+  {
+    quote: "Kylva transformed our vision into a digital masterpiece. The attention to detail and understanding of luxury e-commerce is unparalleled.",
+    author: "Sophie Laurent",
+    position: "Creative Director",
+    brand: "Maison Noir",
+  },
+  {
+    quote: "Working with Kylva felt like partnering with artisans who truly understand the beauty industry. Our online presence now matches our product quality.",
+    author: "Isabella Chen",
+    position: "Founder & CEO",
+    brand: "Lumière Beauty",
+  },
+  {
+    quote: "The sophistication and elegance they brought to our e-commerce platform exceeded all expectations. Our customers notice the difference.",
+    author: "Alexandre Dubois",
+    position: "Brand Director",
+    brand: "Essence Parfums",
+  },
+]
+</script>
+
+<template>
+  <section id="testimonials" ref="targetRef" class="py-32 px-6 lg:px-12 bg-white">
+    <div class="max-w-7xl mx-auto">
+      <div
+        class="mb-24 text-center"
+        v-motion
+        :initial="{ opacity: 0, y: 40 }"
+        :visible-once="{ opacity: 1, y: 0, transition: { duration: 800 } }"
+      >
+        <p class="text-xs uppercase tracking-[0.4em] text-[#D4AF37] mb-4" style="font-family: 'Inter', sans-serif">
+          Client Testimonials
+        </p>
+        <h2
+          class="text-6xl md:text-7xl lg:text-8xl tracking-tight"
+          style="font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.1"
+        >
+          <span class="italic" style="font-weight: 400">Trusted</span> by the Best
+        </h2>
+      </div>
+
+      <div class="grid lg:grid-cols-3 gap-12">
+        <div
+          v-for="(testimonial, index) in testimonials"
+          :key="testimonial.author"
+          class="border-t border-gray-200 pt-8"
+          v-motion
+          :initial="{ opacity: 0, y: 60 }"
+          :visible-once="{ opacity: 1, y: 0, transition: { duration: 800, delay: index * 200 } }"
+        >
+          <p
+            class="text-2xl md:text-3xl mb-12 leading-relaxed"
+            style="font-family: 'Cormorant Garamond', serif; font-weight: 300; font-style: italic"
+          >
+            "{{ testimonial.quote }}"
+          </p>
+
+          <div>
+            <p
+              class="text-lg mb-1"
+              style="font-family: 'Cormorant Garamond', serif; font-weight: 500"
+            >
+              {{ testimonial.author }}
+            </p>
+            <p
+              class="text-sm text-gray-500 mb-1"
+              style="font-family: 'Inter', sans-serif; font-weight: 300"
+            >
+              {{ testimonial.position }}
+            </p>
+            <p
+              class="text-xs uppercase tracking-[0.2em] text-[#D4AF37]"
+              style="font-family: 'Inter', sans-serif; font-weight: 500"
+            >
+              {{ testimonial.brand }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+```
+
+---
+
+## app/components/custom/Home/Contact.vue
+
+```vue
+<script setup lang="ts">
+const { targetRef, isInView } = useInView({ threshold: 0.3 })
+
+const formData = ref({
+  name: "",
+  email: "",
+  brand: "",
+  message: "",
+})
+
+const handleSubmit = () => {
+  console.log("Form submitted:", formData.value)
+}
+</script>
+
+<template>
+  <section id="contact" ref="targetRef" class="py-32 px-6 lg:px-12 bg-[#fafaf9]">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid lg:grid-cols-2 gap-16 lg:gap-24">
+        <div
+          v-motion
+          :initial="{ opacity: 0, x: -60 }"
+          :visible-once="{ opacity: 1, x: 0, transition: { duration: 1000 } }"
+        >
+          <p class="text-xs uppercase tracking-[0.4em] text-[#D4AF37] mb-6" style="font-family: 'Inter', sans-serif">
+            Get In Touch
+          </p>
+
+          <h2
+            class="text-5xl md:text-6xl lg:text-7xl mb-8 tracking-tight"
+            style="font-family: 'Cormorant Garamond', serif; font-weight: 300; line-height: 1.1"
+          >
+            Let's Create
+            <br />
+            <span class="italic" style="font-weight: 400">Something Exceptional</span>
+          </h2>
+
+          <p
+            class="text-lg text-gray-600 leading-relaxed mb-12"
+            style="font-family: 'Inter', sans-serif; font-weight: 300"
+          >
+            Whether you're launching a new brand or reimagining an existing one, we're here to bring your vision to life with elegance and precision.
+          </p>
+
+          <div class="space-y-6">
+            <div>
+              <p
+                class="text-xs uppercase tracking-[0.3em] text-gray-400 mb-2"
+                style="font-family: 'Inter', sans-serif"
+              >
+                Email
+              </p>
+              <a
+                href="mailto:hello@kylva.studio"
+                class="text-xl hover:text-[#D4AF37] transition-colors"
+                style="font-family: 'Cormorant Garamond', serif; font-weight: 400"
+              >
+                hello@kylva.studio
+              </a>
+            </div>
+
+            <div>
+              <p
+                class="text-xs uppercase tracking-[0.3em] text-gray-400 mb-2"
+                style="font-family: 'Inter', sans-serif"
+              >
+                Phone
+              </p>
+              <a
+                href="tel:+1234567890"
+                class="text-xl hover:text-[#D4AF37] transition-colors"
+                style="font-family: 'Cormorant Garamond', serif; font-weight: 400"
+              >
+                +1 (234) 567-890
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-motion
+          :initial="{ opacity: 0, x: 60 }"
+          :visible-once="{ opacity: 1, x: 0, transition: { duration: 1000, delay: 200 } }"
+        >
+          <form @submit.prevent="handleSubmit" class="space-y-8">
+            <div>
+              <label
+                for="name"
+                class="block text-xs uppercase tracking-[0.3em] mb-3"
+                style="font-family: 'Inter', sans-serif; font-weight: 500"
+              >
+                Your Name
+              </label>
+              <input
+                type="text"
+                id="name"
+                v-model="formData.name"
+                required
+                class="w-full border-b border-gray-300 bg-transparent py-3 focus:border-[#D4AF37] focus:outline-none transition-colors text-lg"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              />
+            </div>
+
+            <div>
+              <label
+                for="email"
+                class="block text-xs uppercase tracking-[0.3em] mb-3"
+                style="font-family: 'Inter', sans-serif; font-weight: 500"
+              >
+                Email Address
+              </label>
+              <input
+                type="email"
+                id="email"
+                v-model="formData.email"
+                required
+                class="w-full border-b border-gray-300 bg-transparent py-3 focus:border-[#D4AF37] focus:outline-none transition-colors text-lg"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              />
+            </div>
+
+            <div>
+              <label
+                for="brand"
+                class="block text-xs uppercase tracking-[0.3em] mb-3"
+                style="font-family: 'Inter', sans-serif; font-weight: 500"
+              >
+                Brand Name
+              </label>
+              <input
+                type="text"
+                id="brand"
+                v-model="formData.brand"
+                required
+                class="w-full border-b border-gray-300 bg-transparent py-3 focus:border-[#D4AF37] focus:outline-none transition-colors text-lg"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              />
+            </div>
+
+            <div>
+              <label
+                for="message"
+                class="block text-xs uppercase tracking-[0.3em] mb-3"
+                style="font-family: 'Inter', sans-serif; font-weight: 500"
+              >
+                Tell Us About Your Project
+              </label>
+              <textarea
+                id="message"
+                v-model="formData.message"
+                required
+                rows="5"
+                class="w-full border-b border-gray-300 bg-transparent py-3 focus:border-[#D4AF37] focus:outline-none transition-colors resize-none text-lg"
+                style="font-family: 'Inter', sans-serif; font-weight: 300"
+              />
+            </div>
+
+            <button
+              type="submit"
+              class="w-full py-5 bg-black text-white text-sm uppercase tracking-[0.3em] transition-all"
+              style="font-family: 'Inter', sans-serif; font-weight: 500"
+              v-motion
+              :hover="{ scale: 1.02, backgroundColor: '#000' }"
+              :tap="{ scale: 0.98 }"
+            >
+              Send Message
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+```
+
+---
+
+## app/pages/index.vue
+
+```vue
+<script setup lang="ts">
+useSeoMeta({
+  title: 'Kylva - Luxury E-Commerce Web Development Agency',
+  description: 'Crafting exceptional e-commerce experiences exclusively for luxury fashion and beauty brands.',
+  ogTitle: 'Kylva - Luxury E-Commerce Web Development Agency',
+  ogDescription: 'Crafting exceptional e-commerce experiences exclusively for luxury fashion and beauty brands.',
+  ogImage: '/logo.svg',
+  twitterCard: 'summary_large_image',
+})
+</script>
+
+<template>
+  <div class="size-full">
+    <Navbar />
+    <Hero />
+    <Services />
+    <About />
+    <Work />
+    <Testimonials />
+    <Contact />
+    <Footer />
+  </div>
+</template>
+```
+
+---
+
+*End of Codebase Documentation*

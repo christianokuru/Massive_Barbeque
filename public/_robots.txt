@@ -1,0 +1,24 @@
+# robots.txt for kylva.com
+
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Disallow crawling of API endpoints only (when you add them)
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://kylva.com/sitemap.xml
+
+# Block bad bots (optional, add as needed)
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /

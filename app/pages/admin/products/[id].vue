@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import ProductForm from "@/components/custom/admin/ProductForm.vue";
-definePageMeta({ layout: "admin" });
+definePageMeta({ layout: "admin", middleware: "admin" });
 const route = useRoute();
 const { user, fetchSession } = useAuth();
 await fetchSession();

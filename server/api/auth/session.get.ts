@@ -1,18 +1,10 @@
-import { auth } from '~~/server/auth.config';
+import { getAuthUser } from "~~/server/utils/supabase";
 
 export default defineEventHandler(async (event) => {
   try {
-    const session = await auth.api.getSession({
-      headers: getHeaders(event),
-    });
-
-    if (!session) {
-      return { user: null };
-    }
-
-    return { user: session.user };
-  } catch (error: any) {
-    console.error('Session error:', error);
+    const { user } = await getAuthUser(event);
+    return { user };
+  } catch {
     return { user: null };
   }
 });

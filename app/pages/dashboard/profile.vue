@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ layout: "dashboard" });
+definePageMeta({ layout: "dashboard", middleware: "auth" });
 const { user, fetchSession, logout } = useAuth();
 await fetchSession();
 if (!user.value) await navigateTo("/login");

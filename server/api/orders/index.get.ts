@@ -1,38 +1,28 @@
-import { db, schema } from '~~/server/db';
-import { eq, desc } from 'drizzle-orm';
+import { requireUser } from "~~/server/utils/supabase";
+import { toOrder } from "~~/server/utils/mappers";
 
 export default defineEventHandler(async (event) => {
   try {
-    const session = await getUserSession(event);
-    const userId = session?.user?.id;
+    const { supabase, user } = await requireUser(event);
 
-    if (!userId) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized',
-      });
-    }
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
 
-    // Fetch user's orders
-    const orders = await db.query.orders.findMany({
-      where: eq(schema.orders.userId, userId),
-      with: {
-        items: true,
-      },
-      orderBy: [desc(schema.orders.createdAt)],
-    });
-
-    return { orders };
+    return { orders: (data || []).map(toOrder) };
   } catch (error: any) {
-    console.error('Orders fetch error:', error);
-    
+    console.error("Orders fetch error:", error?.message || error);
+
     if (error.statusCode) {
       throw error;
     }
-    
+
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch orders',
+      statusMessage: "Failed to fetch orders",
     });
   }
 });

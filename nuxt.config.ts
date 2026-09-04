@@ -164,11 +164,24 @@ export default defineNuxtConfig({
     },
   },
 
+  // Security headers (defense in depth; app-level auth is enforced
+  // in server routes + route middleware, not by these alone).
+  routeRules: {
+    "/**": {
+      headers: {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      },
+    },
+  },
+
   runtimeConfig: {
     // Private keys (only available on server-side)
-    databaseUrl: process.env.DATABASE_URL,
-    betterAuthSecret: process.env.BETTER_AUTH_SECRET,
-    betterAuthUrl: process.env.BETTER_AUTH_URL,
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    // Comma-separated emails given the admin role on sign-up/sign-in.
+    adminEmails: process.env.ADMIN_EMAILS || "",
     resendApiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.FROM_EMAIL,
     contactReceiverEmail: process.env.CONTACT_RECEIVER_EMAIL,
@@ -177,6 +190,8 @@ export default defineNuxtConfig({
 
     // Public keys (exposed to client-side)
     public: {
+      supabaseUrl: process.env.SUPABASE_URL || "",
+      supabaseKey: process.env.SUPABASE_KEY || "",
       appName: process.env.NUXT_PUBLIC_APP_NAME || "Massive Barbeque",
       appUrl: process.env.NUXT_PUBLIC_APP_URL || "https://massivebarbeque.com",
       appDescription: process.env.NUXT_PUBLIC_APP_DESCRIPTION || "Premium BBQ Catering in Lagos",

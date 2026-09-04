@@ -1,27 +1,34 @@
-import { db, schema } from '~~/server/db';
-import { eq } from 'drizzle-orm';
+import { getSupabase, getAuthUser } from "~~/server/utils/supabase";
+import { resolveCartId } from "~~/server/utils/cart";
 
 export default defineEventHandler(async (event) => {
   try {
-    const itemId = getRouterParam(event, 'id');
-    
+    const itemId = getRouterParam(event, "id");
+
     if (!itemId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Item ID is required',
+        statusMessage: "Item ID is required",
       });
     }
 
-    // Delete cart item
-    await db.delete(schema.cartItems)
-      .where(eq(schema.cartItems.id, Number(itemId)));
+    const { supabase, user } = await getAuthUser(event);
+    const cartId = await resolveCartId(event, supabase, user?.id ?? null);
+
+    // Scoped to the requester's cart.
+    const { error } = await supabase
+      .from("cart_items")
+      .delete()
+      .eq("id", Number(itemId))
+      .eq("cart_id", cartId);
+    if (error) throw error;
 
     return { success: true };
   } catch (error: any) {
-    console.error('Cart item delete error:', error);
+    console.error("Cart item delete error:", error?.message || error);
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to delete cart item',
+      statusMessage: "Failed to delete cart item",
     });
   }
 });

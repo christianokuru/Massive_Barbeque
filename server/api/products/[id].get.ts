@@ -1,48 +1,46 @@
-import { db, schema } from '~~/server/db';
-import { eq } from 'drizzle-orm';
+import { getSupabase } from "~~/server/utils/supabase";
+import { toProduct } from "~~/server/utils/mappers";
 
 export default defineEventHandler(async (event) => {
   try {
-    const id = getRouterParam(event, 'id');
-    
+    const id = getRouterParam(event, "id");
+
     if (!id) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Product ID is required',
+        statusMessage: "Product ID is required",
       });
     }
 
-    const productId = Number(id);
+    const supabase = getSupabase(event);
+    const { data, error } = await supabase
+      .from("products")
+      .select("*, categories(*), product_variants(*)")
+      .eq("id", Number(id))
+      .single();
 
-    // Fetch product with variants and category
-    const product = await db.query.products.findFirst({
-      where: eq(schema.products.id, productId),
-      with: {
-        variants: {
-          where: eq(schema.productVariants.isActive, true),
-        },
-        category: true,
-      },
-    });
-
-    if (!product) {
+    if (error || !data) {
       throw createError({
         statusCode: 404,
-        statusMessage: 'Product not found',
+        statusMessage: "Product not found",
       });
     }
 
-    return { product };
+    data.product_variants = (data.product_variants || []).filter(
+      (v: any) => v.is_active
+    );
+
+    return { product: toProduct(data) };
   } catch (error: any) {
-    console.error('Product fetch error:', error);
-    
+    console.error("Product fetch error:", error?.message || error);
+
     if (error.statusCode) {
       throw error;
     }
-    
+
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch product',
+      statusMessage: "Failed to fetch product",
     });
   }
 });

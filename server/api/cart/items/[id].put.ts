@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { db, schema } from '~~/server/db';
-import { eq } from 'drizzle-orm';
+import { z } from "zod";
+import { getSupabase, getAuthUser } from "~~/server/utils/supabase";
+import { resolveCartId } from "~~/server/utils/cart";
 
 const cartItemUpdateSchema = z.object({
   quantity: z.number().int().min(1),
@@ -8,37 +8,43 @@ const cartItemUpdateSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
-    const itemId = getRouterParam(event, 'id');
-    
+    const itemId = getRouterParam(event, "id");
+
     if (!itemId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Item ID is required',
+        statusMessage: "Item ID is required",
       });
     }
 
     const body = await readValidatedBody(event, cartItemUpdateSchema.parse);
 
-    // Update cart item
-    await db.update(schema.cartItems)
-      .set({ quantity: body.quantity })
-      .where(eq(schema.cartItems.id, Number(itemId)));
+    const { supabase, user } = await getAuthUser(event);
+    const cartId = await resolveCartId(event, supabase, user?.id ?? null);
+
+    // Scoped to the requester's cart — one guest can't edit another's items.
+    const { error } = await supabase
+      .from("cart_items")
+      .update({ quantity: body.quantity })
+      .eq("id", Number(itemId))
+      .eq("cart_id", cartId);
+    if (error) throw error;
 
     return { success: true };
   } catch (error: any) {
-    console.error('Cart item update error:', error);
-    
+    console.error("Cart item update error:", error?.message || error);
+
     if (error instanceof z.ZodError) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Invalid form data',
+        statusMessage: "Invalid form data",
         data: error.errors,
       });
     }
 
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to update cart item',
+      statusMessage: "Failed to update cart item",
     });
   }
 });

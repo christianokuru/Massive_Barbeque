@@ -1,36 +1,27 @@
-import { db, schema } from '~~/server/db';
-import { desc } from 'drizzle-orm';
+import { requireAdmin } from "~~/server/utils/supabase";
+import { toOrder } from "~~/server/utils/mappers";
 
 export default defineEventHandler(async (event) => {
   try {
-    // TODO: Add proper admin authentication middleware
-    const session = await getUserSession(event);
-    if (!session?.user) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized',
-      });
-    }
+    const { supabase } = await requireAdmin(event);
 
-    // Fetch all orders
-    const orders = await db.query.orders.findMany({
-      with: {
-        items: true,
-      },
-      orderBy: [desc(schema.orders.createdAt)],
-    });
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
 
-    return { orders };
+    return { orders: (data || []).map(toOrder) };
   } catch (error: any) {
-    console.error('Admin orders fetch error:', error);
-    
+    console.error("Admin orders fetch error:", error?.message || error);
+
     if (error.statusCode) {
       throw error;
     }
-    
+
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch orders',
+      statusMessage: "Failed to fetch orders",
     });
   }
 });

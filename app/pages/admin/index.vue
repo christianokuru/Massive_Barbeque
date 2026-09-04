@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ layout: "admin" });
+definePageMeta({ layout: "admin", middleware: "admin" });
 const { user, fetchSession } = useAuth();
 await fetchSession();
 if (!user.value) await navigateTo("/login");

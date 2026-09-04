@@ -21,7 +21,7 @@ const form = ref({
 const error = ref("");
 const placing = ref(false);
 
-const deliveryFee = computed(() => (form.value.fulfillmentType === "delivery" ? 2000 : 0));
+const deliveryFee = computed(() => deliveryFeeFor(form.value.fulfillmentType));
 const total = computed(() => subtotal.value + deliveryFee.value);
 
 const schema = z.object({

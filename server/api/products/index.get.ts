@@ -1,69 +1,46 @@
-import { db, schema } from '~~/server/db';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { getSupabase } from "~~/server/utils/supabase";
+import { toProduct } from "~~/server/utils/mappers";
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
     const categoryId = query.categoryId ? Number(query.categoryId) : undefined;
-    const featured = query.featured === 'true';
+    const featured = query.featured === "true";
     const search = query.search as string | undefined;
     const limit = query.limit ? Number(query.limit) : 50;
     const offset = query.offset ? Number(query.offset) : 0;
 
-    // Build base query
-    let whereCondition = eq(schema.products.isActive, true);
+    const supabase = getSupabase(event);
+    // Left-join variants (a product with no active variants must still list),
+    // then drop inactive variants in JS.
+    let req = supabase
+      .from("products")
+      .select("*, categories(*), product_variants(*)", { count: "exact" })
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
-    if (categoryId) {
-      whereCondition = and(whereCondition, eq(schema.products.categoryId, categoryId))!;
-    }
+    if (categoryId) req = req.eq("category_id", categoryId);
+    if (featured) req = req.eq("featured", true);
+    if (search) req = req.ilike("name", `%${search}%`);
 
-    if (featured) {
-      whereCondition = and(whereCondition, eq(schema.products.featured, true))!;
-    }
+    const { data, error, count } = await req;
+    if (error) throw error;
 
-    // Fetch products with their variants
-    const products = await db.query.products.findMany({
-      where: whereCondition,
-      with: {
-        variants: {
-          where: eq(schema.productVariants.isActive, true),
-        },
-        category: true,
-      },
-      orderBy: [desc(schema.products.createdAt)],
-      limit,
-      offset,
-    });
-
-    // Filter by search term if provided (client-side filtering for simplicity)
-    let filteredProducts = products;
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredProducts = products.filter(product => 
-        product.name.toLowerCase().includes(searchLower) ||
-        product.description?.toLowerCase().includes(searchLower)
-      );
-    }
-
-    // Get total count for pagination
-    const totalCount = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(schema.products)
-      .where(whereCondition);
+    const products = (data || []).map((p: any) => ({
+      ...p,
+      product_variants: (p.product_variants || []).filter((v: any) => v.is_active),
+    }));
 
     return {
-      products: filteredProducts,
-      pagination: {
-        total: Number(totalCount[0]?.count || 0),
-        limit,
-        offset,
-      },
+      products: products.map(toProduct),
+      pagination: { total: count ?? 0, limit, offset },
     };
   } catch (error: any) {
-    console.error('Products fetch error:', error);
+    console.error("Products fetch error:", error?.message || error);
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch products',
+      statusMessage: "Failed to fetch products",
     });
   }
 });

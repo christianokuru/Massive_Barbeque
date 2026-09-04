@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import OrderTable from "@/components/custom/admin/OrderTable.vue";
-definePageMeta({ layout: "admin" });
+definePageMeta({ layout: "admin", middleware: "admin" });
 const { user, fetchSession } = useAuth();
 await fetchSession();
 if (!user.value) await navigateTo("/login");

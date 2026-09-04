@@ -113,7 +113,8 @@ watch(
     </NuxtLayout>
     <Toaster
       position="bottom-right"
-      duration="4000"
+      :duration="4000"
+      :rich-colors="true"
       :close-button="true"
       :toast-options="{
         class: 'border-0 shadow-sm',

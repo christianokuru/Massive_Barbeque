@@ -1,73 +1,74 @@
-import crypto from 'crypto';
-import { db, schema } from '~~/server/db';
-import { eq } from 'drizzle-orm';
+import crypto from "crypto";
+import { getServiceSupabase } from "~~/server/utils/supabase";
 
 export default defineEventHandler(async (event) => {
   try {
     const config = useRuntimeConfig();
-    const body = await readBody(event);
-    
+    const rawBody = await readRawBody(event, "utf8");
+    const body = JSON.parse(rawBody || "{}");
+
     // Get Paystack signature from headers
-    const signature = getHeader(event, 'x-paystack-signature');
-    
+    const signature = getHeader(event, "x-paystack-signature");
+
     if (!signature) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Missing signature',
+        statusMessage: "Missing signature",
       });
     }
 
-    // Verify webhook signature
+    // Verify webhook signature over the RAW body (exact bytes Paystack signed).
     const hash = crypto
-      .createHmac('sha512', config.paystackSecretKey)
-      .update(JSON.stringify(body))
-      .digest('hex');
+      .createHmac("sha512", config.paystackSecretKey)
+      .update(rawBody || "")
+      .digest("hex");
 
     if (hash !== signature) {
       throw createError({
         statusCode: 401,
-        statusMessage: 'Invalid signature',
+        statusMessage: "Invalid signature",
       });
     }
 
     // Process webhook event
-    const event_type = body.event;
-    
-    if (event_type === 'charge.success') {
+    if (body.event === "charge.success") {
       const paymentData = body.data;
-      
-      // Update payment status in database
-      await db.update(schema.payments)
-        .set({
-          status: 'succeeded',
-          transactionId: paymentData.reference,
-          gatewayResponse: paymentData,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.payments.reference, paymentData.reference));
+      const supabase = getServiceSupabase();
 
-      // Update order status
-      const payment = await db.query.payments.findFirst({
-        where: eq(schema.payments.reference, paymentData.reference),
-      });
+      const { data: payment } = await supabase
+        .from("payments")
+        .select("order_id")
+        .eq("reference", paymentData.reference)
+        .maybeSingle();
 
       if (payment) {
-        await db.update(schema.orders)
-          .set({
-            paymentStatus: 'paid',
-            status: 'confirmed',
-            updatedAt: new Date(),
+        await supabase
+          .from("payments")
+          .update({
+            status: "paid",
+            raw: paymentData,
+            paid_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
-          .where(eq(schema.orders.id, payment.orderId));
+          .eq("reference", paymentData.reference);
+
+        await supabase
+          .from("orders")
+          .update({
+            payment_status: "paid",
+            status: "confirmed",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", payment.order_id);
       }
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('Paystack webhook error:', error);
+    console.error("Paystack webhook error:", error?.message || error);
     throw createError({
       statusCode: 500,
-      statusMessage: 'Webhook processing failed',
+      statusMessage: "Webhook processing failed",
     });
   }
 });

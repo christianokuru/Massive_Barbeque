@@ -1,13 +1,12 @@
-import { db, schema } from "~~/server/db";
-import { eq } from "drizzle-orm";
+import { requireAdmin } from "~~/server/utils/supabase";
 
 export default defineEventHandler(async (event) => {
-  const session = await getUserSession(event);
-  if (!session?.user) throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+  const { supabase } = await requireAdmin(event);
 
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Product ID required" });
 
-  await db.delete(schema.products).where(eq(schema.products.id, id));
+  const { error } = await supabase.from("products").delete().eq("id", id);
+  if (error) throw error;
   return { success: true };
 });

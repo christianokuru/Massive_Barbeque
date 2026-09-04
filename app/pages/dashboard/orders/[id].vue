@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
-definePageMeta({ layout: "dashboard" });
+definePageMeta({ layout: "dashboard", middleware: "auth" });
 const route = useRoute();
 const { user, fetchSession } = useAuth();
 await fetchSession();

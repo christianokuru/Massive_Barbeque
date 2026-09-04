@@ -53,6 +53,25 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    // Record the pending payment so the webhook can confirm the order.
+    if (body.orderId) {
+      const { getServiceSupabase } = await import("~~/server/utils/supabase");
+      await getServiceSupabase()
+        .from("payments")
+        .upsert(
+          {
+            order_id: body.orderId,
+            provider: "paystack",
+            reference: data.data.reference,
+            amount: body.amount,
+            currency: "NGN",
+            status: "pending",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "reference" }
+        );
+    }
+
     return {
       success: true,
       authorization_url: data.data.authorization_url,

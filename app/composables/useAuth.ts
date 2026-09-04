@@ -1,11 +1,12 @@
 export function useAuth() {
+  const supabase = useSupabase();
   const user = useState<any>("auth:user", () => null);
   const pending = useState<boolean>("auth:pending", () => true);
 
   async function fetchSession() {
     pending.value = true;
     try {
-      const data = await $fetch<{ user: any }>("/api/auth/session");
+      const { data } = await supabase.auth.getUser();
       user.value = data.user;
     } catch {
       user.value = null;
@@ -16,8 +17,12 @@ export function useAuth() {
   }
 
   async function register(payload: { name: string; email: string; password: string }) {
-    await $fetch("/api/auth/register", { method: "POST", body: payload });
+    const data = await $fetch<{
+      signedInInstead?: boolean;
+      emailConfirmationRequired?: boolean;
+    }>("/api/auth/register", { method: "POST", body: payload });
     await fetchSession();
+    return data;
   }
 
   async function login(payload: { email: string; password: string }) {
@@ -31,8 +36,35 @@ export function useAuth() {
     await navigateTo("/");
   }
 
-  const isLoggedIn = computed(() => !!user.value);
-  const isAdmin = computed(() => (user.value as any)?.role === "admin");
+  async function requestPasswordReset(email: string) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw error;
+  }
 
-  return { user, pending, isLoggedIn, isAdmin, fetchSession, register, login, logout };
+  async function updatePassword(password: string) {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+  }
+
+  const isLoggedIn = computed(() => !!user.value);
+  const isAdmin = computed(() => user.value?.app_metadata?.role === "admin");
+  const displayName = computed(
+    () => user.value?.user_metadata?.name || user.value?.email || ""
+  );
+
+  return {
+    user,
+    pending,
+    isLoggedIn,
+    isAdmin,
+    displayName,
+    fetchSession,
+    register,
+    login,
+    logout,
+    requestPasswordReset,
+    updatePassword,
+  };
 }

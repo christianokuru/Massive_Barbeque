@@ -1,74 +1,68 @@
-import { z } from 'zod';
-import { db, schema } from '~~/server/db';
-import { eq } from 'drizzle-orm';
+import { z } from "zod";
+import { requireAdmin } from "~~/server/utils/supabase";
+import { toOrder } from "~~/server/utils/mappers";
 
 const orderStatusSchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled']),
-  paymentStatus: z.enum(['pending', 'paid', 'failed', 'refunded']).optional(),
+  status: z.enum(["pending", "confirmed", "preparing", "ready", "completed", "cancelled"]),
+  paymentStatus: z.enum(["pending", "paid", "failed", "refunded"]).optional(),
 });
 
 export default defineEventHandler(async (event) => {
   try {
-    // TODO: Add proper admin authentication middleware
-    const session = await getUserSession(event);
-    if (!session?.user) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized',
-      });
-    }
+    const { supabase } = await requireAdmin(event);
 
-    const orderId = getRouterParam(event, 'id');
-    
+    const orderId = getRouterParam(event, "id");
+
     if (!orderId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Order ID is required',
+        statusMessage: "Order ID is required",
       });
     }
 
     const body = await readValidatedBody(event, orderStatusSchema.parse);
 
-    // Update order status
-    const updateData: any = {
+    const updateData: Record<string, any> = {
       status: body.status,
-      updatedAt: new Date(),
+      updated_at: new Date().toISOString(),
     };
 
     if (body.paymentStatus) {
-      updateData.paymentStatus = body.paymentStatus;
+      updateData.payment_status = body.paymentStatus;
     }
 
-    await db.update(schema.orders)
-      .set(updateData)
-      .where(eq(schema.orders.id, orderId));
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update(updateData)
+      .eq("id", orderId);
+    if (updateError) throw updateError;
 
-    // Fetch updated order
-    const order = await db.query.orders.findFirst({
-      where: eq(schema.orders.id, orderId),
-      with: {
-        items: true,
-      },
-    });
+    const { data: order, error } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("id", orderId)
+      .single();
+    if (error) throw error;
 
-    return { 
-      success: true, 
-      order 
+    return {
+      success: true,
+      order: toOrder(order),
     };
   } catch (error: any) {
-    console.error('Order status update error:', error);
-    
+    console.error("Order status update error:", error?.message || error);
+
     if (error instanceof z.ZodError) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Invalid form data',
+        statusMessage: "Invalid form data",
         data: error.errors,
       });
     }
+    if (error?.statusCode) throw error;
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Failed to update order status',
+      statusMessage: error?.message || "Failed to update order status",
     });
   }
 });

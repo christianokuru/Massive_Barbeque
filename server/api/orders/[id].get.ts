@@ -1,62 +1,52 @@
-import { db, schema } from '~~/server/db';
-import { eq } from 'drizzle-orm';
+import { getAuthUser } from "~~/server/utils/supabase";
+import { toOrder } from "~~/server/utils/mappers";
 
 export default defineEventHandler(async (event) => {
   try {
-    const session = await getUserSession(event);
-    const userId = session?.user?.id;
-    const orderId = getRouterParam(event, 'id');
+    const { supabase, user } = await getAuthUser(event);
+    const userId = user?.id ?? null;
+    const orderId = getRouterParam(event, "id");
 
     if (!orderId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Order ID is required',
+        statusMessage: "Order ID is required",
       });
     }
 
-    // Fetch order
-    const order = await db.query.orders.findFirst({
-      where: eq(schema.orders.id, orderId),
-      with: {
-        items: {
-          with: {
-            variant: {
-              with: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const { data: order, error } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("id", orderId)
+      .single();
 
-    if (!order) {
+    if (error || !order) {
       throw createError({
         statusCode: 404,
-        statusMessage: 'Order not found',
+        statusMessage: "Order not found",
       });
     }
 
-    // Check if user owns this order (admins and guest orders can view)
-    const role = (session?.user as any)?.role;
-    if (order.userId && order.userId !== userId && role !== "admin") {
+    // Owner, admin, or guest orders (user_id null) may view.
+    const role = (user?.app_metadata as any)?.role;
+    if (order.user_id && order.user_id !== userId && role !== "admin") {
       throw createError({
         statusCode: 403,
-        statusMessage: 'Forbidden',
+        statusMessage: "Forbidden",
       });
     }
 
-    return { order };
+    return { order: toOrder(order) };
   } catch (error: any) {
-    console.error('Order fetch error:', error);
-    
+    console.error("Order fetch error:", error?.message || error);
+
     if (error.statusCode) {
       throw error;
     }
-    
+
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch order',
+      statusMessage: "Failed to fetch order",
     });
   }
 });

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 definePageMeta({ layout: "admin", middleware: "admin" });
 const { user, fetchSession } = useAuth();
-await fetchSession();
-if (!user.value) await navigateTo("/login");
+if (process.client) {
+  await fetchSession();
+  if (!user.value) await navigateTo("/login");
+}
 const { data: products, refresh } = await useAsyncData("admin-products", () =>
   $fetch<{ products: any[] }>("/api/products?limit=100").then((r) => r.products)
 );
@@ -14,12 +16,12 @@ async function removeProduct(id: number) {
 </script>
 
 <template>
-  <div>
+  <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <div class="flex items-center justify-between">
       <h1 class="text-3xl font-bold">Products</h1>
       <NuxtLink to="/admin/products/new" class="rounded bg-black px-5 py-2 text-sm text-white">+ New product</NuxtLink>
     </div>
-    <div class="mt-6 space-y-2">
+    <div class="space-y-2">
       <div v-for="p in (products ?? [])" :key="p.id" class="flex items-center justify-between rounded border p-4">
         <div><p class="font-medium">{{ p.name }}</p><p class="text-sm text-gray-500">{{ p.slug }} · {{ (p.variants ?? []).length }} variants</p></div>
         <div class="flex gap-3 text-sm">

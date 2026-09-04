@@ -36,7 +36,7 @@ async function submit() {
     }
     await navigateTo(dest);
   } catch (e: any) {
-    error.value = e?.data?.message || "Could not create account. Try again.";
+    error.value = e?.data?.statusMessage || e?.message || "Could not create account. Try again.";
     toast.error(error.value, { duration: 8000 });
   } finally {
     loading.value = false;

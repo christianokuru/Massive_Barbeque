@@ -20,7 +20,7 @@ async function submit() {
     await navigateTo(safe ? redirect : isAdmin.value ? "/admin" : "/dashboard");
     toast.success("Welcome back!");
   } catch (e: any) {
-    error.value = e?.data?.message || "Invalid email or password.";
+    error.value = e?.data?.statusMessage || e?.message || "Invalid email or password.";
     toast.error(error.value, { duration: 8000 });
   } finally {
     loading.value = false;

@@ -3,10 +3,13 @@ import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
 definePageMeta({ layout: "admin", middleware: "admin" });
 const route = useRoute();
 const { user, fetchSession } = useAuth();
-await fetchSession();
-if (!user.value) await navigateTo("/login");
+if (process.client) {
+  await fetchSession();
+  if (!user.value) await navigateTo("/login");
+}
+const requestHeaders = useRequestHeaders(["cookie"]);
 const { data: order, refresh } = await useAsyncData(`admin-order-${route.params.id}`, () =>
-  $fetch<{ order: any }>(`/api/orders/${route.params.id}`).then((r) => r.order).catch(() => null)
+  $fetch<{ order: any }>(`/api/orders/${route.params.id}`, { headers: requestHeaders }).then((r) => r.order).catch(() => null)
 );
 const status = ref("confirmed");
 const paymentStatus = ref("paid");
@@ -32,9 +35,9 @@ async function save() {
 </script>
 
 <template>
-  <div>
+  <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <NuxtLink to="/admin/orders" class="text-sm text-gray-500 hover:underline">← All orders</NuxtLink>
-    <div v-if="order" class="mt-4">
+    <div v-if="order">
       <h1 class="text-3xl font-bold">{{ order.orderNumber }}</h1>
       <div class="mt-2 flex gap-2"><OrderStatus :status="order.status" /><OrderStatus :status="order.paymentStatus" /></div>
       <p class="mt-4 text-sm text-gray-600">{{ order.customerName }} · {{ order.customerEmail }} · {{ order.customerPhone }}</p>
@@ -54,6 +57,6 @@ async function save() {
         <button :disabled="saving" class="rounded bg-black px-5 py-2 text-sm text-white disabled:opacity-50" @click="save">{{ saving ? "Saving…" : "Update status" }}</button>
       </div>
     </div>
-    <p v-else class="mt-6 text-gray-500">Order not found.</p>
+    <p v-else class="text-gray-500">Order not found.</p>
   </div>
 </template>

@@ -3,8 +3,10 @@ import ProductForm from "@/components/custom/admin/ProductForm.vue";
 definePageMeta({ layout: "admin", middleware: "admin" });
 const route = useRoute();
 const { user, fetchSession } = useAuth();
-await fetchSession();
-if (!user.value) await navigateTo("/login");
+if (process.client) {
+  await fetchSession();
+  if (!user.value) await navigateTo("/login");
+}
 const { data: categories } = await useAsyncData("admin-cats-edit", () =>
   $fetch<{ categories: any[] }>("/api/categories").then((r) => r.categories ?? []).catch(() => [])
 );
@@ -44,9 +46,9 @@ async function submit() {
 </script>
 
 <template>
-  <div>
+  <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <h1 class="text-3xl font-bold">Edit product</h1>
-    <ProductForm v-model="model" :categories="categories ?? []" :saving="saving" class="mt-6" @submit="submit" />
+    <ProductForm v-model="model" :categories="categories ?? []" :saving="saving" @submit="submit" />
     <p v-if="error" class="mt-3 text-sm text-red-600">{{ error }}</p>
   </div>
 </template>

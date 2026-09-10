@@ -4,12 +4,7 @@
       <NuxtLink to="/dashboard" class="text-sm font-medium">Overview</NuxtLink>
       <NuxtLink to="/dashboard/orders" class="text-sm text-muted-foreground">Orders</NuxtLink>
       <NuxtLink to="/dashboard/profile" class="text-sm text-muted-foreground">Profile</NuxtLink>
-      <ThemeToggle class="ml-auto" />
     </div>
     <slot />
   </div>
 </template>
-
-<script setup lang="ts">
-import ThemeToggle from "@/components/ThemeToggle.vue";
-</script>

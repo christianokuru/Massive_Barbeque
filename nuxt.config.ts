@@ -50,11 +50,13 @@ export default defineNuxtConfig({
     domains: ["images.unsplash.com"],
   },
 
-  // Color Mode Configuration (M3 light + dark schemes; class strategy drives .dark)
+  // Color Mode Configuration (dark-only: light theme removed)
   colorMode: {
     classSuffix: "",
-    fallback: "light",
-    preference: "system",
+    preference: "dark",
+    fallback: "dark",
+    // Fresh key so any "light" stored by the old toggle is ignored.
+    storageKey: "massive-theme",
   },
 
   // SEO Configuration

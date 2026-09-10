@@ -3,9 +3,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import Logo from "@/components/custom/general/Logo.vue";
 import NavSheet, { type NavDestination } from "@/components/custom/general/NavSheet.vue";
 import CartSheet from "@/components/custom/general/CartSheet.vue";
-import ThemeToggle from "@/components/ThemeToggle.vue";
 import M3Icon from "@/components/M3Icon.vue";
 import { Menu } from "lucide-vue-next";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 /* M3 small top app bar: transparent over the homepage hero,
@@ -21,18 +21,39 @@ const cartOpen = ref(false);
 /* Cart is local-first: `count` is synchronous memory state —
    no fetching, no syncing, the badge is always instant. */
 const { count } = useCart();
-const { isLoggedIn } = useAuth();
+const { isLoggedIn, displayName } = useAuth();
 
 const isHome = computed(() => route.path === "/");
 const surfaced = computed(() => !isHome.value || scrolled.value || navOpen.value || cartOpen.value);
 
 const destinations = computed<NavDestination[]>(() => [
+  { name: "Home", to: "/" },
   { name: "Menu", to: "/menu" },
-  { name: "Track order", to: "/dashboard/orders" },
-  isLoggedIn.value
-    ? { name: "Account", to: "/dashboard" }
-    : { name: "Log in", to: "/login" },
+  { name: "About Us", to: "/about" },
+  { name: "Contact", to: "/contact" },
 ]);
+
+/* Auth entry lives on the right with the cart + theme icons —
+   "Account" when signed in, "Log in" otherwise. */
+const authLink = computed<NavDestination>(() =>
+  isLoggedIn.value ? { name: "Account", to: "/dashboard" } : { name: "Log in", to: "/login" },
+);
+
+/* Mobile sheet carries every destination including the auth entry. */
+const mobileLinks = computed<NavDestination[]>(() => [...destinations.value, authLink.value]);
+
+/* Signed-in avatar: initials from the display name (or email fallback). */
+const initials = computed(() => {
+  const name = displayName.value || "?";
+  return (
+    name
+      .split(/[\s@._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "?"
+  );
+});
 
 function isActive(to: string) {
   return route.path === to || route.path.startsWith(`${to}/`);
@@ -47,11 +68,10 @@ const barTone = computed(() =>
   surfaced.value ? "text-foreground" : "text-inverse-on-surface",
 );
 
+/* Nav links stay white in both color modes, surfaced or not. */
 function linkTone(active: boolean) {
-  if (active) return "bg-secondary-container text-on-secondary-container";
-  return surfaced.value
-    ? "text-foreground hover:bg-secondary-container/60"
-    : "text-inverse-on-surface hover:bg-inverse-on-surface/15";
+  if (active) return "bg-white/15 text-white";
+  return "text-white hover:bg-white/10";
 }
 
 function closeSheets() {
@@ -119,7 +139,32 @@ onMounted(() => {
       </div>
 
       <div class="flex shrink-0 items-center gap-0.5 sm:gap-1">
-        <ThemeToggle />
+        <!-- Auth entry: desktop only, mobile uses the nav sheet.
+             Signed in → initials avatar, otherwise serif "Log in". -->
+        <NuxtLink
+          v-if="isLoggedIn"
+          to="/dashboard"
+          :aria-label="`Account — ${displayName}`"
+          :title="displayName"
+          class="hidden h-10 w-10 items-center justify-center md:inline-flex"
+        >
+          <Avatar class="h-9 w-9 border border-white/40">
+            <AvatarFallback class="bg-primary text-sm font-semibold text-primary-foreground">
+              {{ initials }}
+            </AvatarFallback>
+          </Avatar>
+        </NuxtLink>
+        <NuxtLink
+          v-else
+          :to="authLink.to"
+          :aria-current="isActive(authLink.to) ? 'page' : undefined"
+          :class="[
+            'hidden rounded-full px-4 py-2 font-serif text-sm font-medium tracking-[0.15em] uppercase transition-colors md:inline-flex',
+            linkTone(isActive(authLink.to)),
+          ]"
+        >
+          {{ authLink.name }}
+        </NuxtLink>
 
         <!-- Cart: opens the mini-cart sheet -->
         <button
@@ -128,9 +173,8 @@ onMounted(() => {
           aria-haspopup="dialog"
           :aria-expanded="cartOpen"
           :class="[
-            'relative inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors sm:h-11 sm:w-11',
+            'relative inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition-colors sm:h-11 sm:w-11',
             surfaced ? 'hover:bg-secondary-container/60' : 'hover:bg-inverse-on-surface/15',
-            barTone,
           ]"
           @click="cartOpen = true"
         >
@@ -165,7 +209,7 @@ onMounted(() => {
   <!-- Mobile nav links -->
   <NavSheet
     :open="navOpen"
-    :links="destinations"
+    :links="mobileLinks"
     @update:open="navOpen = $event"
     @close="navOpen = false"
   />

@@ -36,11 +36,11 @@ async function save() {
 
 <template>
   <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
-    <NuxtLink to="/admin/orders" class="text-sm text-gray-500 hover:underline">← All orders</NuxtLink>
+    <NuxtLink to="/admin/orders" class="text-sm text-muted-foreground hover:underline">← All orders</NuxtLink>
     <div v-if="order">
-      <h1 class="text-3xl font-bold">{{ order.orderNumber }}</h1>
+      <h1 class="text-2xl font-bold break-all sm:text-3xl">{{ order.orderNumber }}</h1>
       <div class="mt-2 flex gap-2"><OrderStatus :status="order.status" /><OrderStatus :status="order.paymentStatus" /></div>
-      <p class="mt-4 text-sm text-gray-600">{{ order.customerName }} · {{ order.customerEmail }} · {{ order.customerPhone }}</p>
+      <p class="mt-4 text-sm text-muted-foreground">{{ order.customerName }} · {{ order.customerEmail }} · {{ order.customerPhone }}</p>
       <ul class="mt-4 space-y-2">
         <li v-for="i in (order.items ?? [])" :key="i.id" class="flex justify-between rounded border p-3 text-sm">
           <span>{{ i.productName }} ({{ i.variantName }}) × {{ i.quantity }}</span>
@@ -48,15 +48,15 @@ async function save() {
         </li>
       </ul>
       <div class="mt-6 flex flex-wrap gap-3">
-        <select v-model="status" class="rounded border px-3 py-2 text-sm">
+        <select v-model="status" class="rounded border border-border bg-background px-3 py-2 text-sm">
           <option value="pending">pending</option><option value="confirmed">confirmed</option><option value="preparing">preparing</option><option value="ready">ready</option><option value="completed">completed</option><option value="cancelled">cancelled</option>
         </select>
-        <select v-model="paymentStatus" class="rounded border px-3 py-2 text-sm">
+        <select v-model="paymentStatus" class="rounded border border-border bg-background px-3 py-2 text-sm">
           <option value="pending">pending</option><option value="paid">paid</option><option value="failed">failed</option><option value="refunded">refunded</option>
         </select>
-        <button :disabled="saving" class="rounded bg-black px-5 py-2 text-sm text-white disabled:opacity-50" @click="save">{{ saving ? "Saving…" : "Update status" }}</button>
+        <button :disabled="saving" class="rounded bg-primary px-5 py-2 text-sm text-primary-foreground disabled:opacity-50" @click="save">{{ saving ? "Saving…" : "Update status" }}</button>
       </div>
     </div>
-    <p v-else class="text-gray-500">Order not found.</p>
+    <p v-else class="text-muted-foreground">Order not found.</p>
   </div>
 </template>

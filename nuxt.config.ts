@@ -15,13 +15,31 @@ export default defineNuxtConfig({
   css: ["./app/assets/css/main.css"],
   vite: {
     plugins: [tailwindcss()],
+    build: {
+      rollupOptions: {
+        output: {
+          // Split heavy admin-only vendors into their own chunks so the
+          // initial client bundle stays lean; they're loaded on demand
+          // via defineAsyncComponent in app/pages/admin/index.vue.
+          manualChunks(id) {
+            if (id.includes("node_modules/@unovis")) return "unovis";
+            if (id.includes("node_modules/@tanstack")) return "vue-table";
+          },
+        },
+      },
+    },
   },
 
-  // Color Mode Configuration
+  // Image optimization (hero + product imagery)
+  image: {
+    domains: ["images.unsplash.com"],
+  },
+
+  // Color Mode Configuration (M3 light + dark schemes; class strategy drives .dark)
   colorMode: {
     classSuffix: "",
     fallback: "light",
-    preference: "light",
+    preference: "system",
   },
 
   // SEO Configuration
@@ -53,6 +71,11 @@ export default defineNuxtConfig({
           href: "https://fonts.gstatic.com",
           crossorigin: "anonymous",
         },
+        // M3 icon system (Material Symbols Outlined, variable axes)
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap",
+        },
       ],
       meta: [
         { name: "theme-color", content: "#FF6B35" },
@@ -69,6 +92,9 @@ export default defineNuxtConfig({
 
   // Sitemap Configuration
   sitemap: {
+    // All sources are static (`urls` below) — prerender at build time and
+    // skip the runtime sitemap handlers to shrink the server bundle.
+    zeroRuntime: true,
     strictNuxtContentPaths: true,
     urls: [
       {

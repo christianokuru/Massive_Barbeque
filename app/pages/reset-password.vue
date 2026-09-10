@@ -45,15 +45,15 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md px-4 py-24">
-    <h1 class="text-3xl font-bold">Set new password</h1>
-    <p class="mt-1 text-sm text-gray-500">Choose a new password (min 8 characters).</p>
+  <div class="mx-auto max-w-md px-4 py-20 sm:py-24">
+    <h1 class="text-2xl font-bold sm:text-3xl">Set new password</h1>
+    <p class="mt-1 text-sm text-muted-foreground">Choose a new password (min 8 characters).</p>
     <form v-if="ready" class="mt-6 space-y-4" @submit.prevent="submit">
       <label class="block"><span class="mb-1 block text-sm font-medium">New password</span><PasswordInput v-model="password" required minlength="8" autocomplete="new-password" /></label>
-      <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
-      <p v-if="notice" class="text-sm text-green-700">{{ notice }}</p>
-      <button :disabled="loading" class="w-full rounded bg-black px-6 py-3 text-white disabled:opacity-50">{{ loading ? "Saving…" : "Save new password" }}</button>
+      <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+      <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
+      <button :disabled="loading" class="w-full rounded bg-primary px-6 py-3 text-primary-foreground disabled:opacity-50">{{ loading ? "Saving…" : "Save new password" }}</button>
     </form>
-    <p v-else class="mt-6 text-sm text-gray-500">{{ error || "Verifying your reset link…" }}</p>
+    <p v-else class="mt-6 text-sm text-muted-foreground">{{ error || "Verifying your reset link…" }}</p>
   </div>
 </template>

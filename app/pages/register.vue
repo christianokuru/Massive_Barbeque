@@ -45,17 +45,17 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md px-4 py-24">
-    <h1 class="text-3xl font-bold">Create account</h1>
-    <p class="mt-1 text-sm text-gray-500">Save addresses, track orders, reorder in one tap.</p>
+  <div class="mx-auto max-w-md px-4 py-20 sm:py-24">
+    <h1 class="text-2xl font-bold sm:text-3xl">Create account</h1>
+    <p class="mt-1 text-sm text-muted-foreground">Save addresses, track orders, reorder in one tap.</p>
     <form class="mt-6 space-y-4" @submit.prevent="submit">
-      <label class="block"><span class="mb-1 block text-sm font-medium">Name</span><input v-model="form.name" required minlength="2" class="w-full rounded border border-gray-300 px-3 py-2" /></label>
-      <label class="block"><span class="mb-1 block text-sm font-medium">Email</span><input v-model="form.email" type="email" required class="w-full rounded border border-gray-300 px-3 py-2" /></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium">Name</span><input v-model="form.name" required minlength="2" class="w-full rounded border border-border bg-background px-3 py-2" /></label>
+      <label class="block"><span class="mb-1 block text-sm font-medium">Email</span><input v-model="form.email" type="email" required class="w-full rounded border border-border bg-background px-3 py-2" /></label>
       <label class="block"><span class="mb-1 block text-sm font-medium">Password (min 8 chars)</span><PasswordInput v-model="form.password" required minlength="8" autocomplete="new-password" /></label>
-      <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
-      <p v-if="notice" class="text-sm text-green-700">{{ notice }}</p>
-      <button :disabled="loading" class="w-full rounded bg-black px-6 py-3 text-white disabled:opacity-50">{{ loading ? "Creating…" : "Create account" }}</button>
+      <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+      <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
+      <button :disabled="loading" class="w-full rounded bg-primary px-6 py-3 text-primary-foreground disabled:opacity-50">{{ loading ? "Creating…" : "Create account" }}</button>
     </form>
-    <p class="mt-4 text-sm text-gray-500">Have an account? <NuxtLink to="/login" class="text-[#FF6B35] hover:underline">Log in</NuxtLink></p>
+    <p class="mt-4 text-sm text-muted-foreground">Have an account? <NuxtLink to="/login" class="text-primary hover:underline">Log in</NuxtLink></p>
   </div>
 </template>

@@ -1,9 +1,12 @@
-import { getAuthUser } from "~~/server/utils/supabase";
+import { getServiceSupabase, getAuthUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 
 export default defineEventHandler(async (event) => {
   try {
-    const { supabase, user } = await getAuthUser(event);
+    // Identity only — the read uses the service role because RLS has no
+    // select policy covering guest orders. Authorization stays in code
+    // below: owner, admin, or guest order (user_id null).
+    const { user } = await getAuthUser(event);
     const userId = user?.id ?? null;
     const orderId = getRouterParam(event, "id");
 
@@ -14,6 +17,7 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    const supabase = getServiceSupabase();
     const { data: order, error } = await supabase
       .from("orders")
       .select("*, order_items(*)")

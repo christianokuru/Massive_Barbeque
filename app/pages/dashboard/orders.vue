@@ -11,13 +11,13 @@ const { data: orders } = await useAsyncData("all-orders", () =>
 
 <template>
   <div>
-    <h1 class="text-3xl font-bold">Order history</h1>
+    <h1 class="text-2xl font-bold sm:text-3xl">Order history</h1>
     <div class="mt-6 space-y-3">
-      <div v-for="o in (orders ?? [])" :key="o.id" class="flex items-center justify-between rounded border p-4">
-        <div><p class="font-medium">{{ o.orderNumber }}</p><p class="text-sm text-gray-500">{{ new Date(o.createdAt).toLocaleString() }} · ₦{{ Number(o.total).toLocaleString() }}</p></div>
-        <div class="flex items-center gap-3"><OrderStatus :status="o.status" /><NuxtLink :to="`/dashboard/orders/${o.id}`" class="text-sm text-blue-600">View</NuxtLink></div>
+      <div v-for="o in (orders ?? [])" :key="o.id" class="flex items-center justify-between rounded border border-border bg-card p-4">
+        <div><p class="font-medium">{{ o.orderNumber }}</p><p class="text-sm text-muted-foreground">{{ new Date(o.createdAt).toLocaleString() }} · ₦{{ Number(o.total).toLocaleString() }}</p></div>
+        <div class="flex items-center gap-3"><OrderStatus :status="o.status" /><NuxtLink :to="`/dashboard/orders/${o.id}`" class="text-sm text-primary">View</NuxtLink></div>
       </div>
-      <p v-if="!(orders ?? []).length" class="text-gray-500">No orders yet.</p>
+      <p v-if="!(orders ?? []).length" class="text-muted-foreground">No orders yet.</p>
     </div>
   </div>
 </template>

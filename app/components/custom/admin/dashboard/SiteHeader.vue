@@ -4,6 +4,7 @@ import { Store } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import ThemeToggle from "@/components/ThemeToggle.vue";
 
 defineProps<{
   title: string
@@ -22,6 +23,7 @@ defineProps<{
         {{ title }}
       </h1>
       <div class="ml-auto flex items-center gap-2">
+        <ThemeToggle />
         <Button variant="ghost" as-child size="sm" class="hidden sm:flex">
           <NuxtLink to="/" target="_blank">
             <Store />

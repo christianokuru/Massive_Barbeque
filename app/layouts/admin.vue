@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProductDialog from "@/components/custom/admin/products/ProductDialog.vue";
 import AppSidebar from "@/components/custom/admin/dashboard/AppSidebar.vue";
 import SiteHeader from "@/components/custom/admin/dashboard/SiteHeader.vue";
 import {
@@ -35,4 +36,5 @@ const title = computed(() => {
       </div>
     </SidebarInset>
   </SidebarProvider>
+  <ProductDialog />
 </template>

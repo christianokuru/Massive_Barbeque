@@ -1,44 +1,61 @@
-export interface CartItemRow {
-  id: number;
-  quantity: number;
-  variant: { id: number; name: string; price: string; sku: string; product: { id: number; name: string; imageUrl?: string | null } };
-}
+// Local-first cart store. Everything is synchronous and instant —
+// add / setQty / remove apply to memory + localStorage with zero
+// network. The server sees the cart exactly once: at checkout, where
+// the client submits ids + quantities and the server prices from the
+// database (never trust client money).
+//
+// HOST SEAM: `~~/shared/utils/pricing` is the only host import —
+// repoint it (or inline `Number()` sums) when reusing elsewhere.
+
+import { applyAdd, applyRemove, applySetQty } from "./cart/ops";
+import { createLocalCartStorage } from "./cart/storage";
+import type { AddLineInput, CartRow, CartStorage } from "./cart/types";
+// HOST: money helpers from the host project.
+import { cartSubtotal } from "~~/shared/utils/pricing";
+
+let storage: CartStorage | null = null;
+let hydrated = false;
 
 export function useCart() {
-  const items = useState<CartItemRow[]>("cart:items", () => []);
-  const pending = useState<boolean>("cart:pending", () => false);
+  const items = useState<CartRow[]>("cart:items", () => []);
 
-  const count = computed(() => items.value.reduce((n, i) => n + i.quantity, 0));
+  if (!storage) storage = createLocalCartStorage();
+  if (!hydrated) {
+    hydrated = true;
+    const cached = storage.load();
+    if (cached) items.value = cached;
+  }
+
+  const count = computed(() =>
+    items.value.reduce((n, i) => n + Math.max(0, Math.floor(i.quantity)), 0),
+  );
   const subtotal = computed(() =>
-    items.value.reduce((sum, i) => sum + Number(i.variant?.price ?? 0) * i.quantity, 0)
+    cartSubtotal(items.value.map((i) => ({ price: i.price, quantity: i.quantity }))),
   );
 
-  async function refresh() {
-    pending.value = true;
-    try {
-      const data = await $fetch<{ cart: { items: CartItemRow[] } }>("/api/cart");
-      items.value = data.cart?.items ?? [];
-    } catch {
-      items.value = [];
-    } finally {
-      pending.value = false;
-    }
+  function persist(): void {
+    storage!.save(items.value);
   }
 
-  async function addItem(productVariantId: number, quantity = 1) {
-    await $fetch("/api/cart/items", { method: "POST", body: { productVariantId, quantity } });
-    await refresh();
+  function addItem(input: AddLineInput): void {
+    items.value = applyAdd(items.value, input);
+    persist();
   }
 
-  async function updateItem(id: number, quantity: number) {
-    await $fetch(`/api/cart/items/${id}`, { method: "PUT", body: { quantity } });
-    await refresh();
+  function updateItem(id: number, quantity: number): void {
+    items.value = applySetQty(items.value, id, quantity);
+    persist();
   }
 
-  async function removeItem(id: number) {
-    await $fetch(`/api/cart/items/${id}`, { method: "DELETE" });
-    await refresh();
+  function removeItem(id: number): void {
+    items.value = applyRemove(items.value, id);
+    persist();
   }
 
-  return { items, pending, count, subtotal, refresh, addItem, updateItem, removeItem };
+  function clear(): void {
+    items.value = [];
+    persist();
+  }
+
+  return { items, count, subtotal, addItem, updateItem, removeItem, clear };
 }

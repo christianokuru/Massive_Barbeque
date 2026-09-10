@@ -27,14 +27,14 @@ const visible = ref(false);
       :minlength="minlength"
       :placeholder="placeholder"
       :autocomplete="autocomplete"
-      class="w-full rounded border border-gray-300 px-3 py-2 pr-10"
+      class="w-full rounded border border-border bg-background px-3 py-2 pr-10"
     />
     <button
       type="button"
       @click="visible = !visible"
       :aria-label="visible ? 'Hide password' : 'Show password'"
       :aria-pressed="visible"
-      class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-800"
+      class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
     >
       <EyeOff v-if="visible" class="h-5 w-5" />
       <Eye v-else class="h-5 w-5" />

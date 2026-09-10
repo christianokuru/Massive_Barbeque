@@ -2,9 +2,16 @@
 import type { DashboardStats } from "@/components/custom/admin/dashboard/SectionCards.vue";
 import type { OrderRow } from "@/components/custom/admin/dashboard/DataTable.vue";
 import type { RevenuePoint } from "@/components/custom/admin/dashboard/ChartAreaInteractive.vue";
-import ChartAreaInteractive from "@/components/custom/admin/dashboard/ChartAreaInteractive.vue";
-import DataTable from "@/components/custom/admin/dashboard/DataTable.vue";
 import SectionCards from "@/components/custom/admin/dashboard/SectionCards.vue";
+// Heavy below-the-fold deps (@unovis charts, @tanstack/vue-table) load on
+// demand so they don't bloat the initial client bundle (see manualChunks
+// in nuxt.config.ts).
+const ChartAreaInteractive = defineAsyncComponent(
+  () => import("@/components/custom/admin/dashboard/ChartAreaInteractive.vue")
+);
+const DataTable = defineAsyncComponent(
+  () => import("@/components/custom/admin/dashboard/DataTable.vue")
+);
 
 definePageMeta({ layout: "admin", middleware: "admin" });
 

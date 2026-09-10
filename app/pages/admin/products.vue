@@ -1,34 +1,62 @@
 <script setup lang="ts">
+import { Plus } from "lucide-vue-next";
+import AdminProductCard from "@/components/custom/admin/products/AdminProductCard.vue";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+
 definePageMeta({ layout: "admin", middleware: "admin" });
+
 const { user, fetchSession } = useAuth();
 if (process.client) {
   await fetchSession();
   if (!user.value) await navigateTo("/login");
 }
-const { data: products, refresh } = await useAsyncData("admin-products", () =>
-  $fetch<{ products: any[] }>("/api/products?limit=100").then((r) => r.products)
-);
-async function removeProduct(id: number) {
-  if (!confirm("Delete this product?")) return;
-  await $fetch(`/api/admin/products/${id}`, { method: "DELETE" });
-  await refresh();
-}
+
+const { products, pending, fetchProducts, openCreate } = useAdminProducts();
+const requestHeaders = useRequestHeaders(["cookie"]);
+
+await useAsyncData("admin-products", async () => {
+  if (process.server) {
+    // SSR has no browser session; forward the request cookies instead.
+    const data = await $fetch<{ products: any[] }>("/api/admin/products", {
+      headers: requestHeaders,
+    }).catch(() => ({ products: [] }));
+    products.value = data.products ?? [];
+  } else {
+    await fetchProducts();
+  }
+  return true;
+});
 </script>
 
 <template>
   <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <div class="flex items-center justify-between">
-      <h1 class="text-3xl font-bold">Products</h1>
-      <NuxtLink to="/admin/products/new" class="rounded bg-black px-5 py-2 text-sm text-white">+ New product</NuxtLink>
-    </div>
-    <div class="space-y-2">
-      <div v-for="p in (products ?? [])" :key="p.id" class="flex items-center justify-between rounded border p-4">
-        <div><p class="font-medium">{{ p.name }}</p><p class="text-sm text-gray-500">{{ p.slug }} · {{ (p.variants ?? []).length }} variants</p></div>
-        <div class="flex gap-3 text-sm">
-          <NuxtLink :to="`/admin/products/${p.id}`" class="text-blue-600">Edit</NuxtLink>
-          <button class="text-red-600" @click="removeProduct(p.id)">Delete</button>
-        </div>
+      <div>
+        <h1 class="text-3xl font-bold">Products</h1>
+        <p class="text-sm text-muted-foreground">{{ products.length }} item(s) on the menu</p>
       </div>
+      <Button @click="openCreate">
+        <Plus /> Add product
+      </Button>
+    </div>
+
+    <div v-if="pending && products.length === 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <Skeleton v-for="n in 4" :key="n" class="aspect-[4/5] w-full rounded-xl" />
+    </div>
+    <div v-else-if="products.length > 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <AdminProductCard
+        v-for="product in products"
+        :key="product.id"
+        :product="product"
+      />
+    </div>
+    <div v-else class="rounded-lg border border-dashed p-12 text-center">
+      <p class="font-medium">No products yet</p>
+      <p class="mt-1 text-sm text-muted-foreground">Add your first item to start building the menu.</p>
+      <Button class="mt-4" @click="openCreate">
+        <Plus /> Add product
+      </Button>
     </div>
   </div>
 </template>

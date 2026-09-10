@@ -52,30 +52,6 @@ export function toProduct(row: any) {
   };
 }
 
-export function toCartItem(row: any) {
-  if (!row) return row;
-  const variant = row.product_variants || row.variant;
-  return {
-    id: row.id,
-    cartId: row.cart_id,
-    productVariantId: row.variant_id,
-    quantity: row.quantity,
-    variant: variant
-      ? {
-          ...toVariant(variant),
-          product: variant.products || variant.product
-            ? {
-                id: (variant.products || variant.product).id,
-                name: (variant.products || variant.product).name,
-                imageUrl: (variant.products || variant.product).image_url,
-              }
-            : undefined,
-        }
-      : undefined,
-    createdAt: row.created_at,
-  };
-}
-
 export function toAddress(row: any) {
   if (!row) return row;
   return {

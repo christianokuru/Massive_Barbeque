@@ -18,17 +18,17 @@ const { data: order } = await useAsyncData(
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl px-4 py-24 text-center md:px-6">
-    <h1 class="text-3xl font-bold">Thank you! 🔥</h1>
-    <p class="mt-3 text-gray-600">
+  <div class="mx-auto max-w-2xl px-4 py-20 text-center sm:py-24 md:px-6">
+    <h1 class="text-2xl font-bold sm:text-3xl">Thank you! 🔥</h1>
+    <p class="mt-3 text-muted-foreground">
       Your order <span v-if="orderId" class="font-medium">{{ order?.orderNumber ?? orderId }}</span>
       has been received.
       <span v-if="reference">Payment reference: {{ reference }}.</span>
       We will confirm shortly by email/SMS.
     </p>
     <div class="mt-8 flex justify-center gap-3">
-      <NuxtLink to="/menu" class="rounded bg-black px-6 py-3 text-white">Order more</NuxtLink>
-      <NuxtLink to="/dashboard/orders" class="rounded border border-gray-300 px-6 py-3">Track order</NuxtLink>
+      <NuxtLink to="/menu" class="rounded bg-primary px-6 py-3 text-primary-foreground">Order more</NuxtLink>
+      <NuxtLink to="/dashboard/orders" class="rounded border border-border px-6 py-3">Track order</NuxtLink>
     </div>
   </div>
 </template>

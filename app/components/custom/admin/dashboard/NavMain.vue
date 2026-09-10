@@ -17,6 +17,7 @@ interface NavItem {
 }
 
 const route = useRoute();
+const { openCreate } = useAdminProducts();
 
 const items: NavItem[] = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
@@ -36,14 +37,12 @@ function isActive(url: string) {
       <SidebarMenu>
         <SidebarMenuItem class="flex items-center gap-2">
           <SidebarMenuButton
-            as-child
             tooltip="New product"
             class="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
+            @click="openCreate"
           >
-            <NuxtLink to="/admin/products/new">
-              <Plus />
-              <span>New product</span>
-            </NuxtLink>
+            <Plus />
+            <span>New product</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>

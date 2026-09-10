@@ -1,35 +1,35 @@
 # AGENTS.md — Massive Barbeque
 
-Nuxt 4 (Nitro) BBQ ordering app for Lagos. Frontend in `app/`, backend is file-based Nitro routes in `server/api/`, Supabase (Postgres + Auth) via `supabase-js` (`server/utils/supabase.ts`).
+Nuxt 4 (Nitro) BBQ ordering app. Frontend in `app/`, file-based Nitro routes in `server/api/`, Supabase (Postgres + Auth) via `server/utils/supabase.ts`. Pricing helpers in `shared/utils/pricing.ts`.
 
-## Commands (npm only, lockfile is `package-lock.json`)
+## Commands (npm only — lockfile is `package-lock.json`)
 
-- `npm install` then `npm run dev` (http://localhost:3000). `npm run preview` for prod.
-- `postinstall` runs `nuxt prepare` — run it after install if `.nuxt/` types are missing.
-- No lint or typecheck scripts. Never run `npm run build` unless the user asks — verify with `npm test` (vitest) instead.
-- DB lives in Supabase — schema changes are SQL migrations run in the Supabase dashboard (SQL editor) or CLI. No local migration runner.
+- `npm install` then `npm run dev` (http://localhost:3000). `postinstall` runs `nuxt prepare` — rerun if `.nuxt/` types are missing.
+- Verify with `npm test` (vitest); single suite: `npx vitest run tests/pricing.test.ts` (`tests/`: pricing, rateLimit, orderStatus). Never run `npm run build` unless asked.
+- DB lives in Supabase: schema in `supabase/migrations/` (`0001_initial_schema.sql`), seed via `supabase/seed.mjs`. No local migration runner.
 
 ## Env
 
-- `.env` is gitignored — never commit it. Key names live in `.env.example`.
-- Server reads Supabase keys via `useRuntimeConfig()` (`nuxt.config.ts`). `SUPABASE_SERVICE_ROLE_KEY` is server-only; only `runtimeConfig.public.*` (`NUXT_PUBLIC_*`) reaches the client. Do not expose `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY`, `FLUTTERWAVE_SECRET_KEY`, `RESEND_API_KEY` to client code.
+- `.env` is gitignored — never commit it; key names live in `.env.example`.
+- Server reads keys via `useRuntimeConfig()` (`nuxt.config.ts`). `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY`, `FLUTTERWAVE_SECRET_KEY`, `RESEND_API_KEY` are server-only; only `runtimeConfig.public.*` (`NUXT_PUBLIC_*`) reaches the client.
 
 ## Structure
 
-- Pages: `index.vue` (BBQ landing + featured products), `menu.vue`, `product/[id].vue`, `cart.vue`, `checkout.vue`, `checkout/confirm.vue`, `login.vue`, `register.vue`, `dashboard/` (index, orders, orders/[id], profile), `admin/` (index, products, products/new, products/[id], orders, orders/[id]). Layouts: `default` (Navbar + `<slot/>` + Footer), `dashboard`, `admin`.
-- `app/components/custom/ecommerce/` (ProductCard, CartItem, OrderStatus) and `app/components/custom/admin/` (ProductForm, OrderTable) are the shop components; `app/components/custom/{Home,general}/` holds legacy landing sections (only Navbar/Footer/Logo still used); `app/components/ui/` = shadcn-vue (`new-york`, `typescript: false`, lucide icons). Import via `@/components/...`, `@/lib/utils`.
-- Client state: `app/composables/useAuth.ts` (session, login/register/logout, `isAdmin`) and `useCart.ts` (items, subtotal, add/update/remove). New `.vue` SFCs using TS must declare `<script setup lang="ts">` — the repo's older files are plain JS and the build fails otherwise.
-- Styling is Tailwind v4: `@import "tailwindcss"` + `@theme inline` in `app/assets/css/main.css`, wired via `@tailwindcss/vite` in `nuxt.config.ts`. No `tailwind.config`.
-- Client plugins must be `*.client.ts` (`app/plugins/: aos, lenis, flutterwave`). Lenis smooth-scroll resets on `page:finish`.
-- `server/api/**/*.get|post|put|delete.ts` = routes (`orders.post.ts` vs `orders/[id].get.ts` pattern). Subdirs: `auth/` (Supabase Auth), `cart/`, `products/`, `categories/`, `orders/`, `payments/{paystack,flutterwave,webhooks}/`, `admin/{orders,products}/`. Shared Supabase clients live in `server/utils/supabase.ts` (user-scoped + service-role) — use them.
-- Schema source of truth: Supabase Postgres (tables mirror the old `server/db/schema.ts` domains: auth users + `categories/products/productVariants/addresses/carts/cartItems/orders/orderItems/payments`). RLS policies enforce owner/admin access — the API relies on them, never bypass with service-role for user data.
+- Pages (`app/pages/`): `index`, `menu`, `product/[id]`, `checkout`, `checkout/confirm`, `login`, `register`, `forgot-password`, `reset-password`, `dashboard/` (index, orders, orders/[id], profile), `admin/` (index, orders, orders/[id], products — single `products.vue` + dialog, no `products/new`). Layouts: `default`, `dashboard`, `admin`.
+- Components: shop UI in `app/components/custom/{ecommerce,product,admin}/` (ProductCard, CartItem, OrderStatus, OrderTable, ProductDialog/AdminProductCard); `custom/{landing,general}/` is legacy landing — only Navbar/Footer/shared still used. `app/components/ui/` = shadcn-vue (`new-york`, `typescript: false`, lucide). Aliases per `components.json`: `@/components/...`, `@/lib/utils`.
+- SFCs are mixed plain `<script setup>` and `<script setup lang="ts">` — match the surrounding file.
+- Client state: `useAuth.ts` (session, `isAdmin` from `app_metadata.role`), `useSupabase.ts`, `useAdminProducts.ts`. Cart is local-first: `app/composables/useCart.ts` + `cart/{types,storage,ops}` (pure ops, localStorage-persisted, zero network until checkout). Checkout posts `{variantId, quantity}[]`; `orders.post.ts` reprices from the live catalog and writes via service role (RLS has no customer order-insert policy — identity from session, money from DB, never the client). Guest order reads use service role + code authz in `orders/[id].get.ts` (owner/admin/`user_id` null). There are no `/api/cart*` routes. Styling is Tailwind v4 (`@import "tailwindcss"` in `app/assets/css/main.css` via `@tailwindcss/vite`; no `tailwind.config`) with M3 tokens — see `MATERIAL-3-DESIGN-PRINCIPLES.md` for UI work. `colorMode` is `preference: "system"`, `fallback: "light"`.
+- Mobile-first is mandatory: every UI change/addition MUST be mobile-responsive (base styles for small screens, `sm:`/`md:`/`lg:` up; grids collapse to 1–2 cols, tap targets ≥40px). Never ship desktop-only layouts.
+- Client plugins must be `*.client.ts` (`app/plugins/`: aos, lenis, flutterwave, supabase). Lenis resets scroll on `page:finish`. Lenis owns window scroll — any modal/sheet MUST pair it with `lenis.stop()`/`start()` (see Navbar sheet lock) plus body `overflow` lock, or the background keeps scrolling behind the overlay.
+- API: `server/api/**/*.get|post|put|delete.ts` (`orders.post.ts` vs `orders/[id].get.ts` pattern). Subdirs: `auth/`, `products/`, `categories/`, `orders/`, `payments/{paystack,flutterwave,webhooks}/`, `admin/{orders,products,variants,customers}/`. Use `getSupabase(event)` (user-scoped, RLS applies) for user data; `getServiceSupabase()` bypasses RLS — admin/webhook-only, plus order create/read (no customer RLS policies there; authz in code).
+- Pricing: `shared/utils/pricing.ts` is the single source (`DELIVERY_FEE_FLAT = 2000`, `orderTotals`/`deliveryFeeFor`, `toAmount` for Postgres `decimal` strings, `toKobo` for Paystack). Both `server/api/orders.post.ts` and `app/pages/checkout.vue` use it — never hardcode the fee on either side.
 
 ## Gotchas
 
-- `docs/` (`brief.md`, `prd.md`) is the old **Kylva agency** template — do not treat it as spec. Trust `server/db/schema.ts`, `server/api/`, `nuxt.config.ts` (site `massivebarbeque.com`, Restaurant schema), and `.env.example`.
-- Nuxt 4 `~/` resolves to `app/`, so server code must import sibling modules via `~~/server/...` (e.g. `~~/server/utils/supabase`), never `~/server/...` — the latter breaks the Nitro build (`ENOENT .../app//server/...`).
-- Auth: Supabase Auth (email/password) via `server/utils/supabase.ts`. Client session comes from `@supabase/ssr` cookie storage — never roll custom cookie handling. Admin role lives in `app_metadata.role`; first admin comes from the `ADMIN_EMAILS` allow-list (promoted on sign-up/sign-in — no in-app self-promotion). Auth endpoints are rate-limited (`server/utils/rateLimit.ts`: login 10/15min, register 5/hr per IP; in-memory, single-instance only). `colorMode` is pinned to light (`preference/fallback: "light"`).
-- Guards: API uses `requireUser`/`requireAdmin` from `server/utils/supabase.ts` (`requireAdmin` denies missing roles — never fail open); pages use `app/middleware/auth.ts` (dashboard) and `admin.ts` (admin, non-admins → `/`, guests → `/login?redirect=`). Login/register only honor internal `redirect` paths (open-redirect protection). Global security headers live in `routeRules` in `nuxt.config.ts`.
-- Orders: `GET /api/orders/[id]` allows owner, `role === "admin"`, or guest orders (`userId` null) — keep that shape so the checkout-confirm page works for guests.
-- Payments/email: Paystack + Flutterwave initialize/verify + webhook handlers under `server/api/payments/` (Paystack webhook validates `x-paystack-signature`); emails via Resend. Totals/prices are `decimal` strings — convert before arithmetic. Checkout delivery fee is a hardcoded ₦2,000 in `server/api/orders.post.ts` and mirrored in `app/pages/checkout.vue` — change both together.
-- Forms: `vee-validate` + `zod`; toasts via `vue-sonner` `<Toaster>` in `app/app.vue`. GA4 is hand-injected in `app/app.vue` from `config.public.gaId` with manual `page_view` on route change — don't double-instrument.
+- `docs/` (`brief.md`, `prd.md`) is the old Kylva agency template — not spec. Trust `supabase/migrations/`, `server/api/`, `nuxt.config.ts` (site `massivebarbeque.com`, Restaurant schema), `.env.example`. There is no `server/db/schema.ts`.
+- Nuxt 4 `~/` resolves to `app/`, so server code must import via `~~/server/...` (e.g. `~~/server/utils/supabase`), never `~/server/...` — the latter breaks the Nitro build.
+- Auth: Supabase Auth email/password, `@supabase/ssr` cookie session — never roll custom cookies. Admin role lives in `app_metadata.role`; `ADMIN_EMAILS` allow-list promotes on sign-up/sign-in (`server/utils/adminBootstrap.ts`) — no in-app self-promotion. Register treats duplicate email as sign-in attempt (password must still match — don't "fix" this). Rate-limited (`server/utils/rateLimit.ts`, in-memory single-instance): login 10/15min, register 5/hr per IP.
+- Guards: API `requireUser`/`requireAdmin` (deny missing roles, never fail open); pages `app/middleware/auth.ts` (dashboard) and `admin.ts` (guests → `/login?redirect=`, non-admins → `/`) — both server-safe via `/api/auth/session`. Login/register only honor internal `redirect` (`startsWith("/")` and not `"//"`). Security headers in `nuxt.config.ts` `routeRules` are defense-in-depth only.
+- Orders: `GET /api/orders/[id]` allows owner, `role === "admin"`, or guest orders (`user_id` null) — keep that shape for the guest checkout-confirm page.
+- Payments/email: Paystack + Flutterwave initialize/verify + webhooks under `server/api/payments/`; Paystack webhook must HMAC-verify `x-paystack-signature` over the **raw** body (`readRawBody`), not parsed JSON. Emails via Resend.
+- Forms: `vee-validate` + `zod`; toasts via `vue-sonner` `<Toaster>` in `app/app.vue`. GA4 is hand-injected there from `config.public.gaId` with manual `page_view` on route change — don't double-instrument.

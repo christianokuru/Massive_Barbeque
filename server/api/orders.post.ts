@@ -1,10 +1,23 @@
 import { z } from "zod";
-import { getSupabase, getAuthUser } from "~~/server/utils/supabase";
+import { getServiceSupabase, getAuthUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 import { cartSubtotal, lineTotal, orderTotals } from "~~/shared/utils/pricing";
 import crypto from "crypto";
 
+// The cart lives in the browser; the client submits ids + quantities
+// ONLY. Prices, availability, and totals are resolved from the live
+// catalog below — client money is never trusted.
+//
+// Writes go through the service role: RLS carries no customer insert
+// policy for orders, and every value written here is server-derived
+// (identity from the verified session, prices from the database).
+const orderItemSchema = z.object({
+  variantId: z.number().int().positive(),
+  quantity: z.number().int().min(1).max(99),
+});
+
 const orderSchema = z.object({
+  items: z.array(orderItemSchema).min(1).max(50),
   fulfillmentType: z.enum(["delivery", "pickup"]),
   customerEmail: z.string().email(),
   customerName: z.string().min(1),
@@ -28,40 +41,41 @@ const orderSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
-    const { supabase, user } = await getAuthUser(event);
+    const { user } = await getAuthUser(event);
     const userId = user?.id ?? null;
+    const supabase = getServiceSupabase();
 
     const body = await readValidatedBody(event, orderSchema.parse);
 
-    // Resolve cart: logged-in users by user_id, guests by cookie.
-    let cartId = getCookie(event, "cart_id");
-    if (userId) {
-      const { data: userCart } = await supabase
-        .from("carts")
-        .select("id")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (userCart) cartId = userCart.id;
+    // Merge duplicate lines so each variant is priced once.
+    const quantities = new Map<number, number>();
+    for (const item of body.items) {
+      quantities.set(item.variantId, (quantities.get(item.variantId) ?? 0) + item.quantity);
     }
-    if (!cartId) {
-      throw createError({ statusCode: 400, statusMessage: "Cart not found" });
+    const variantIds = [...quantities.keys()];
+
+    // Live catalog truth: variant must exist and be active under an
+    // active product. Anything else means a stale cart.
+    const { data: variants, error: variantsError } = await supabase
+      .from("product_variants")
+      .select("*, products!inner(id, name, is_active)")
+      .in("id", variantIds)
+      .eq("is_active", true);
+    if (variantsError) throw variantsError;
+    const live = (variants || []).filter((v: any) => v.products?.is_active !== false);
+    if (live.length !== variantIds.length) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "Some items in your cart are no longer available.",
+      });
     }
 
-    const { data: items, error: itemsError } = await supabase
-      .from("cart_items")
-      .select("*, product_variants!inner(*, products!inner(id, name))")
-      .eq("cart_id", cartId);
-    if (itemsError) throw itemsError;
-    if (!items || items.length === 0) {
-      throw createError({ statusCode: 400, statusMessage: "Cart is empty" });
-    }
-
-    // Totals (shared pricing logic — keep in sync with checkout page).
+    const lines = live.map((v: any) => {
+      const quantity = Math.min(99, quantities.get(v.id) ?? 1);
+      return { variant: v, quantity, total: lineTotal(v.price, quantity) };
+    });
     const subtotal = cartSubtotal(
-      items.map((i: any) => ({
-        price: i.product_variants.price,
-        quantity: i.quantity,
-      }))
+      lines.map((l) => ({ price: l.variant.price, quantity: l.quantity }))
     );
     const { deliveryFee, total } = orderTotals(subtotal, body.fulfillmentType);
 
@@ -103,28 +117,18 @@ export default defineEventHandler(async (event) => {
     if (orderError) throw orderError;
 
     const { error: orderItemsError } = await supabase.from("order_items").insert(
-      items.map((item: any) => ({
+      lines.map((l: any) => ({
         order_id: newOrder.id,
-        variant_id: item.product_variants.id,
-        product_name: item.product_variants.products.name,
-        variant_name: item.product_variants.name,
-        sku: item.product_variants.sku,
-        quantity: item.quantity,
-        unit_price: Number(item.product_variants.price).toFixed(2),
-        total_price: lineTotal(
-          item.product_variants.price,
-          item.quantity
-        ).toFixed(2),
+        variant_id: l.variant.id,
+        product_name: l.variant.products.name,
+        variant_name: l.variant.name,
+        sku: l.variant.sku,
+        quantity: l.quantity,
+        unit_price: Number(l.variant.price).toFixed(2),
+        total_price: l.total.toFixed(2),
       }))
     );
     if (orderItemsError) throw orderItemsError;
-
-    // Clear cart.
-    const { error: clearError } = await supabase
-      .from("cart_items")
-      .delete()
-      .eq("cart_id", cartId);
-    if (clearError) throw clearError;
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")

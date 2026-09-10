@@ -83,7 +83,7 @@ function quickAdd() {
       :aria-label="product.name"
       class="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
-      <div class="aspect-[3/4] w-full overflow-hidden">
+      <div class="aspect-[4/5] w-full overflow-hidden">
         <img
           v-if="product.imageUrl"
           :src="product.imageUrl"

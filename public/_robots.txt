@@ -1,16 +1,20 @@
-# robots.txt for kylva.com
+# robots.txt for massivebarbeque.com
+# (merged by @nuxtjs/robots — see `robots` in nuxt.config.ts)
 
 # Allow all search engines to crawl the site
 User-agent: *
 Allow: /
 
-# Disallow crawling of API endpoints only (when you add them)
-Disallow: /api/
+# NOTE: no `Disallow: /api/` here on purpose. API routes serve JSON to the
+# app only — nothing links to them and they are not in the sitemap, so
+# crawlers cannot discover them. Blocking them triggers a (benign but noisy)
+# "@nuxt/robots has disallowed /api/**" build warning; SSR HTML carries all
+# indexable content, so indexing is unaffected either way.
 
 # Sitemap location
-Sitemap: https://kylva.com/sitemap.xml
+Sitemap: https://massivebarbeque.com/sitemap.xml
 
-# Block bad bots (optional, add as needed)
+# Block bad bots
 User-agent: MJ12bot
 Disallow: /
 

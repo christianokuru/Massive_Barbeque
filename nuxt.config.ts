@@ -13,6 +13,21 @@ export default defineNuxtConfig({
     "@nuxtjs/seo",
   ],
   css: ["./app/assets/css/main.css"],
+  components: [
+    // Nuxt defaults (array form replaces them, so they must be listed to
+    // preserve behavior) plus one tweak below.
+    { path: "~/components/islands", island: true },
+    { path: "~/components/global", global: true },
+    {
+      path: "~/components",
+      // shadcn-vue barrel re-exports are importable modules, not components.
+      // Without this each `ui/*/index.{js,ts}` registers as `Ui*` and
+      // collides with its `*.vue` twin (duplicate-component warnings).
+      // Explicit `import { X } from "@/components/ui/..."` keeps working —
+      // `ignore` only affects auto-scanning, not module resolution.
+      ignore: ["**/ui/**/index.{js,ts}"],
+    },
+  ],
   vite: {
     plugins: [tailwindcss()],
     build: {

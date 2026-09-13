@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSupabase } from "~~/server/utils/supabase";
+import { getSupabase, getServiceSupabase } from "~~/server/utils/supabase";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { ensureAdminRole } from "~~/server/utils/adminBootstrap";
 
@@ -25,6 +25,35 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readValidatedBody(event, loginSchema.parse);
+
+    // Existence check: Supabase returns the same error for "no such user"
+    // and "wrong password", so look the email up explicitly to give a
+    // specific "no account" message. NOTE: this makes account existence
+    // enumerable by design (product decision) — bulk probing is throttled
+    // by the rate limit above (10 attempts/IP/15min).
+    const admin = getServiceSupabase();
+    let exists = false;
+    let lookupOk = true;
+    for (let page = 1; page <= 10; page++) {
+      const { data, error: listError } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+      if (listError) {
+        lookupOk = false;
+        break;
+      }
+      const users = data.users || [];
+      if (users.some((u) => u.email?.toLowerCase() === body.email.toLowerCase())) {
+        exists = true;
+        break;
+      }
+      if (users.length < 1000) break;
+    }
+    if (!exists && lookupOk) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: "No account found for this email. Create one to continue.",
+      });
+    }
+
     const supabase = getSupabase(event);
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -32,7 +61,7 @@ export default defineEventHandler(async (event) => {
       password: body.password,
     });
     if (error || !data.user) {
-      throw createError({ statusCode: 401, statusMessage: "Invalid credentials" });
+      throw createError({ statusCode: 401, statusMessage: "Invalid email or password." });
     }
 
     // Bootstrap: promote allow-listed emails to admin on sign-in.

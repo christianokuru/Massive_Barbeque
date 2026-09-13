@@ -13,6 +13,7 @@ const title = computed(() => {
   const path = route.path;
   if (path.startsWith("/admin/orders")) return "Orders";
   if (path.startsWith("/admin/products")) return "Products";
+  if (path.startsWith("/admin/admins")) return "Admins";
   return "Dashboard";
 });
 </script>

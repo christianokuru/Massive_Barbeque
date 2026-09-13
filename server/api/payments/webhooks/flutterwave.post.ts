@@ -41,6 +41,25 @@ export default defineEventHandler(async (event) => {
         .maybeSingle();
 
       if (payment) {
+        // Amount guard: never mark an order paid for less than its total.
+        // Mismatches are logged, not retried.
+        const { data: order } = await supabase
+          .from("orders")
+          .select("id, total")
+          .eq("id", payment.order_id)
+          .single();
+        if (
+          !order ||
+          paymentData.currency !== "NGN" ||
+          !Number.isFinite(Number(paymentData.amount)) ||
+          Number(paymentData.amount) < Number(order.total)
+        ) {
+          console.error(
+            `Flutterwave amount mismatch for ${paymentData.tx_ref}: got ${paymentData.amount} ${paymentData.currency}, expected >= ${order?.total}`
+          );
+          return { success: true };
+        }
+
         await supabase
           .from("payments")
           .update({

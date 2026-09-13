@@ -2,6 +2,17 @@ export function useAuth() {
   const supabase = useSupabase();
   const user = useState<any>("auth:user", () => null);
   const pending = useState<boolean>("auth:pending", () => true);
+  const isOwner = useState<boolean>("auth:isOwner", () => false);
+
+  async function fetchIsOwner() {
+    try {
+      const data = await $fetch<{ isOwner: boolean }>("/api/auth/session");
+      isOwner.value = !!data.isOwner;
+    } catch {
+      isOwner.value = false;
+    }
+    return isOwner.value;
+  }
 
   async function fetchSession() {
     pending.value = true;
@@ -59,6 +70,8 @@ export function useAuth() {
     pending,
     isLoggedIn,
     isAdmin,
+    isOwner,
+    fetchIsOwner,
     displayName,
     fetchSession,
     register,

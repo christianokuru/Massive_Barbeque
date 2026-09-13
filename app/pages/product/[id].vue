@@ -8,6 +8,7 @@ import StockStatus from "@/components/custom/product/StockStatus.vue";
 import DeliveryStrip from "@/components/custom/product/DeliveryStrip.vue";
 import StickyBuyBar from "@/components/custom/product/StickyBuyBar.vue";
 import RelatedRail from "@/components/custom/product/RelatedRail.vue";
+import SidesRail from "@/components/custom/product/SidesRail.vue";
 import ProductNotFound from "@/components/custom/product/ProductNotFound.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNaira, lineTotal } from "~~/shared/utils/pricing";
@@ -76,6 +77,29 @@ const { data: related } = await useAsyncData(
       return (r.products ?? [])
         .filter((p: any) => String(p.id) !== productId.value)
         .slice(0, 4);
+    } catch {
+      return [];
+    }
+  },
+  { watch: [product] },
+);
+
+/* Sides add-on rail: every BBQ pairs with sides. Hidden on side
+   products themselves (the related rail already covers those). */
+const isSideProduct = computed(() => product.value?.category?.slug === "sides");
+
+const { data: sides } = await useAsyncData(
+  () => `sides-rail-${productId.value}`,
+  async () => {
+    if (isSideProduct.value) return [];
+    try {
+      const { categories } = await $fetch<{ categories: any[] }>("/api/categories");
+      const sidesCat = (categories ?? []).find((c: any) => c.slug === "sides");
+      if (!sidesCat) return [];
+      const r = await $fetch<{ products: any[] }>("/api/products", {
+        params: { categoryId: sidesCat.id, limit: 8 },
+      });
+      return (r.products ?? []).filter((p: any) => String(p.id) !== productId.value);
     } catch {
       return [];
     }
@@ -202,6 +226,8 @@ onUnmounted(() => observer?.disconnect());
     <div v-if="product" class="mt-12">
       <DeliveryStrip :items="deliveryInfo" />
     </div>
+
+    <SidesRail v-if="!isSideProduct" :products="sides ?? []" />
 
     <RelatedRail title="Pairs well with" :products="related ?? []" />
 

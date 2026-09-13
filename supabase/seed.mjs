@@ -105,6 +105,46 @@ const PRODUCTS = [
     featured: false,
     variants: [{ name: "Portion", sku: "MB-GPL-POR", price: "2000.00", inventoryQty: 80 }],
   },
+  {
+    name: "Fried Plantain",
+    slug: "fried-plantain",
+    description: "Golden fried plantain — sweet, crisp edges, soft centre.",
+    category: "sides",
+    featured: false,
+    variants: [{ name: "Portion", sku: "MB-FPL-POR", price: "2000.00", inventoryQty: 80 }],
+  },
+  {
+    name: "Roasted Yam",
+    slug: "roasted-yam",
+    description: "Fire-roasted yam slices — the classic BBQ companion.",
+    category: "sides",
+    featured: false,
+    variants: [{ name: "Portion", sku: "MB-RYM-POR", price: "2500.00", inventoryQty: 80 }],
+  },
+  {
+    name: "Garden Salad",
+    slug: "garden-salad",
+    description: "Crisp fresh salad — a light balance to the smoke.",
+    category: "sides",
+    featured: false,
+    variants: [{ name: "Bowl", sku: "MB-GSL-BWL", price: "2500.00", inventoryQty: 60 }],
+  },
+  {
+    name: "Jollof Rice",
+    slug: "jollof-rice",
+    description: "Smoky party-style jollof, cooked down for maximum flavour.",
+    category: "sides",
+    featured: false,
+    variants: [{ name: "Regular", sku: "MB-JLF-REG", price: "3500.00", inventoryQty: 60 }],
+  },
+  {
+    name: "Pasta",
+    slug: "pasta",
+    description: "Rich, satisfying pasta — comfort in a plate.",
+    category: "sides",
+    featured: false,
+    variants: [{ name: "Plate", sku: "MB-PST-PLT", price: "4000.00", inventoryQty: 60 }],
+  },
 ];
 
 let counts = { categories: 0, products: 0, variants: 0 };

@@ -1,5 +1,12 @@
 <script setup lang="ts">
+import AuthShell from "@/components/custom/general/AuthShell.vue";
+import PasswordInput from "@/components/custom/general/PasswordInput.vue";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+
+definePageMeta({ layout: "auth" });
 useSeoMeta({ title: "Set new password | Massive Barbeque" });
+
 const { updatePassword, fetchSession } = useAuth();
 const supabase = useSupabase();
 const password = ref("");
@@ -45,15 +52,22 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md px-4 py-20 sm:py-24">
-    <h1 class="text-2xl font-bold sm:text-3xl">Set new password</h1>
-    <p class="mt-1 text-sm text-muted-foreground">Choose a new password (min 8 characters).</p>
-    <form v-if="ready" class="mt-6 space-y-4" @submit.prevent="submit">
-      <label class="block"><span class="mb-1 block text-sm font-medium">New password</span><PasswordInput v-model="password" required minlength="8" autocomplete="new-password" /></label>
-      <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
-      <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
-      <button :disabled="loading" class="w-full rounded bg-primary px-6 py-3 text-primary-foreground disabled:opacity-50">{{ loading ? "Saving…" : "Save new password" }}</button>
+  <AuthShell>
+    <form v-if="ready" class="flex flex-col gap-6" @submit.prevent="submit">
+      <div class="flex flex-col items-center gap-2 text-center">
+        <h1 class="text-2xl font-bold">Set new password</h1>
+        <p class="text-sm text-muted-foreground">Choose a new password (min 8 characters).</p>
+      </div>
+      <div class="grid gap-6">
+        <div class="grid gap-3">
+          <Label for="reset-password">New password</Label>
+          <PasswordInput id="reset-password" v-model="password" required minlength="8" autocomplete="new-password" placeholder="Min 8 characters" />
+        </div>
+        <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+        <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
+        <Button type="submit" class="w-full" :disabled="loading">{{ loading ? "Saving…" : "Save new password" }}</Button>
+      </div>
     </form>
-    <p v-else class="mt-6 text-sm text-muted-foreground">{{ error || "Verifying your reset link…" }}</p>
-  </div>
+    <p v-else class="text-center text-sm text-muted-foreground">{{ error || "Verifying your reset link…" }}</p>
+  </AuthShell>
 </template>

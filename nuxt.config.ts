@@ -225,6 +225,8 @@ export default defineNuxtConfig({
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
     // Comma-separated emails given the admin role on sign-up/sign-in.
     adminEmails: process.env.ADMIN_EMAILS || "",
+    // Owners manage admins (promote/demote). Empty falls back to ADMIN_EMAILS.
+    ownerEmails: process.env.OWNER_EMAILS || "",
     resendApiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.FROM_EMAIL,
     contactReceiverEmail: process.env.CONTACT_RECEIVER_EMAIL,

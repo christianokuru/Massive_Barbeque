@@ -46,21 +46,17 @@ function clearFilters() {
     </p>
 
     <div class="mt-6 flex flex-col gap-3">
-      <label class="relative block md:max-w-sm">
+      <label class="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 outline-none transition-shadow focus-within:ring-2 focus-within:ring-ring md:max-w-sm">
         <span class="sr-only">Search BBQ</span>
-        <M3Icon
-          name="search"
-          :size="20"
-          class="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted-foreground"
-        />
+        <M3Icon name="search" :size="20" class="shrink-0 text-muted-foreground" />
         <input
           v-model="search"
           type="search"
           placeholder="Search BBQ…"
-          class="w-full rounded-full border border-border bg-card py-2.5 pr-4 pl-11 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          class="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
       </label>
-      <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0" role="group" aria-label="Filter by category">
+      <div class="-mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0" role="group" aria-label="Filter by category">
         <button
           type="button"
           :aria-pressed="categoryId === undefined"

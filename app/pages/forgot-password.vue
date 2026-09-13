@@ -1,5 +1,12 @@
 <script setup lang="ts">
+import AuthShell from "@/components/custom/general/AuthShell.vue";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+definePageMeta({ layout: "auth" });
 useSeoMeta({ title: "Forgot password | Massive Barbeque" });
+
 const { requestPasswordReset } = useAuth();
 const email = ref("");
 const notice = ref("");
@@ -22,15 +29,24 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md px-4 py-20 sm:py-24">
-    <h1 class="text-2xl font-bold sm:text-3xl">Reset password</h1>
-    <p class="mt-1 text-sm text-muted-foreground">Enter your account email and we'll send you a reset link.</p>
-    <form class="mt-6 space-y-4" @submit.prevent="submit">
-      <label class="block"><span class="mb-1 block text-sm font-medium">Email</span><input v-model="email" type="email" required class="w-full rounded border border-border bg-background px-3 py-2" /></label>
-      <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
-      <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
-      <button :disabled="loading" class="w-full rounded bg-primary px-6 py-3 text-primary-foreground disabled:opacity-50">{{ loading ? "Sending…" : "Send reset link" }}</button>
+  <AuthShell>
+    <form class="flex flex-col gap-6" @submit.prevent="submit">
+      <div class="flex flex-col items-center gap-2 text-center">
+        <h1 class="text-2xl font-bold">Reset password</h1>
+        <p class="text-sm text-muted-foreground">Enter your account email and we'll send you a reset link.</p>
+      </div>
+      <div class="grid gap-6">
+        <div class="grid gap-3">
+          <Label for="forgot-email">Email</Label>
+          <Input id="forgot-email" v-model="email" type="email" placeholder="you@example.com" required autocomplete="email" />
+        </div>
+        <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+        <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
+        <Button type="submit" class="w-full" :disabled="loading">{{ loading ? "Sending…" : "Send reset link" }}</Button>
+      </div>
+      <div class="text-center text-sm">
+        <NuxtLink to="/login" class="underline underline-offset-4">Back to log in</NuxtLink>
+      </div>
     </form>
-    <p class="mt-4 text-sm text-muted-foreground"><NuxtLink to="/login" class="text-primary hover:underline">Back to log in</NuxtLink></p>
-  </div>
+  </AuthShell>
 </template>

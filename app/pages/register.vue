@@ -1,7 +1,14 @@
 <script setup lang="ts">
-useSeoMeta({ title: "Create account | Massive Barbeque" });
 import { toast } from "vue-sonner";
-import PasswordInput from "../components/custom/general/PasswordInput.vue";
+import AuthShell from "@/components/custom/general/AuthShell.vue";
+import PasswordInput from "@/components/custom/general/PasswordInput.vue";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+definePageMeta({ layout: "auth" });
+useSeoMeta({ title: "Create account | Massive Barbeque" });
+
 const { register, isAdmin } = useAuth();
 const route = useRoute();
 const form = ref({ name: "", email: "", password: "" });
@@ -45,17 +52,33 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md px-4 py-20 sm:py-24">
-    <h1 class="text-2xl font-bold sm:text-3xl">Create account</h1>
-    <p class="mt-1 text-sm text-muted-foreground">Save addresses, track orders, reorder in one tap.</p>
-    <form class="mt-6 space-y-4" @submit.prevent="submit">
-      <label class="block"><span class="mb-1 block text-sm font-medium">Name</span><input v-model="form.name" required minlength="2" class="w-full rounded border border-border bg-background px-3 py-2" /></label>
-      <label class="block"><span class="mb-1 block text-sm font-medium">Email</span><input v-model="form.email" type="email" required class="w-full rounded border border-border bg-background px-3 py-2" /></label>
-      <label class="block"><span class="mb-1 block text-sm font-medium">Password (min 8 chars)</span><PasswordInput v-model="form.password" required minlength="8" autocomplete="new-password" /></label>
-      <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
-      <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
-      <button :disabled="loading" class="w-full rounded bg-primary px-6 py-3 text-primary-foreground disabled:opacity-50">{{ loading ? "Creating…" : "Create account" }}</button>
+  <AuthShell>
+    <form class="flex flex-col gap-6" @submit.prevent="submit">
+      <div class="flex flex-col items-center gap-2 text-center">
+        <h1 class="text-2xl font-bold">Create account</h1>
+        <p class="text-sm text-muted-foreground">Save addresses, track orders, reorder in one tap.</p>
+      </div>
+      <div class="grid gap-6">
+        <div class="grid gap-3">
+          <Label for="register-name">Name</Label>
+          <Input id="register-name" v-model="form.name" placeholder="Adaeze Okafor" required minlength="2" autocomplete="name" />
+        </div>
+        <div class="grid gap-3">
+          <Label for="register-email">Email</Label>
+          <Input id="register-email" v-model="form.email" type="email" placeholder="you@example.com" required autocomplete="email" />
+        </div>
+        <div class="grid gap-3">
+          <Label for="register-password">Password</Label>
+          <PasswordInput id="register-password" v-model="form.password" required minlength="8" autocomplete="new-password" placeholder="Min 8 characters" />
+        </div>
+        <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
+        <p v-if="notice" class="text-sm text-tertiary">{{ notice }}</p>
+        <Button type="submit" class="w-full" :disabled="loading">{{ loading ? "Creating…" : "Create account" }}</Button>
+      </div>
+      <div class="text-center text-sm">
+        Have an account?
+        <NuxtLink to="/login" class="underline underline-offset-4">Log in</NuxtLink>
+      </div>
     </form>
-    <p class="mt-4 text-sm text-muted-foreground">Have an account? <NuxtLink to="/login" class="text-primary hover:underline">Log in</NuxtLink></p>
-  </div>
+  </AuthShell>
 </template>

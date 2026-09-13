@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isRateLimited } from "~~/server/utils/rateLimit";
 
 const paystackVerifySchema = z.object({
   reference: z.string(),
@@ -7,6 +8,11 @@ const paystackVerifySchema = z.object({
 export default defineEventHandler(async (event) => {
   try {
     const config = useRuntimeConfig();
+    const ip = getRequestIP(event) || "unknown";
+    const { limited } = isRateLimited(`pay-verify:${ip}`, { limit: 60, windowSecs: 3600 });
+    if (limited) {
+      throw createError({ statusCode: 429, statusMessage: "Too many verification attempts. Try again later." });
+    }
     const body = await readValidatedBody(event, paystackVerifySchema.parse);
 
     // Call Paystack API to verify transaction

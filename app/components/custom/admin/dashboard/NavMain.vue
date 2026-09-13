@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Component } from "vue";
-import { ClipboardList, LayoutDashboard, Package, Plus } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, Package, Plus, ShieldCheck } from "lucide-vue-next";
 
 import {
   SidebarGroup,
@@ -18,12 +18,18 @@ interface NavItem {
 
 const route = useRoute();
 const { openCreate } = useAdminProducts();
+const { isOwner, fetchIsOwner } = useAuth();
 
-const items: NavItem[] = [
+onMounted(() => {
+  fetchIsOwner();
+});
+
+const items = computed<NavItem[]>(() => [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Orders", url: "/admin/orders", icon: ClipboardList },
   { title: "Products", url: "/admin/products", icon: Package },
-];
+  ...(isOwner.value ? [{ title: "Admins", url: "/admin/admins", icon: ShieldCheck }] : []),
+]);
 
 function isActive(url: string) {
   if (url === "/admin") return route.path === "/admin";

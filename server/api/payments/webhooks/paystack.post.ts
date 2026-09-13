@@ -42,6 +42,26 @@ export default defineEventHandler(async (event) => {
         .maybeSingle();
 
       if (payment) {
+        // Amount guard: never mark an order paid for less than its total
+        // (Paystack reports kobo). Mismatches are logged, not retried.
+        const { data: order } = await supabase
+          .from("orders")
+          .select("id, total")
+          .eq("id", payment.order_id)
+          .single();
+        const expectedKobo = order ? Math.round(Number(order.total) * 100) : NaN;
+        if (
+          !order ||
+          paymentData.currency !== "NGN" ||
+          !Number.isFinite(Number(paymentData.amount)) ||
+          Number(paymentData.amount) < expectedKobo
+        ) {
+          console.error(
+            `Paystack amount mismatch for ${paymentData.reference}: got ${paymentData.amount} ${paymentData.currency}, expected >= ${expectedKobo} kobo`
+          );
+          return { success: true };
+        }
+
         await supabase
           .from("payments")
           .update({

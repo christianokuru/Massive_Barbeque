@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getServiceSupabase, getAuthUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 import { cartSubtotal, lineTotal, orderTotals } from "~~/shared/utils/pricing";
+import { isRateLimited } from "~~/server/utils/rateLimit";
 import crypto from "crypto";
 
 // The cart lives in the browser; the client submits ids + quantities
@@ -41,6 +42,20 @@ const orderSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
+    // Cheap to create, easy to abuse for DB bloat: 20 per IP per 15 min.
+    const ip = getRequestIP(event) || "unknown";
+    const { limited, retryAfterSecs } = isRateLimited(`orders:${ip}`, {
+      limit: 20,
+      windowSecs: 900,
+    });
+    if (limited) {
+      setResponseHeader(event, "Retry-After", String(retryAfterSecs));
+      throw createError({
+        statusCode: 429,
+        statusMessage: "Too many orders. Try again later.",
+      });
+    }
+
     const { user } = await getAuthUser(event);
     const userId = user?.id ?? null;
     const supabase = getServiceSupabase();

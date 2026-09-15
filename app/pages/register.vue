@@ -36,7 +36,7 @@ async function submit() {
     // Only internal paths are honored (open-redirect protection).
     const redirect = String(route.query.redirect || "");
     const safe = redirect.startsWith("/") && !redirect.startsWith("//");
-    const dest = safe ? redirect : isAdmin.value ? "/admin" : "/dashboard";
+    const dest = safe ? redirect : isAdmin.value ? "/admin" : "/menu";
     if (data?.signedInInstead) {
       // Let them read the "welcome back" note before leaving.
       await new Promise((r) => setTimeout(r, 1800));

@@ -26,7 +26,7 @@ async function submit() {
     // Only internal paths are honored (open-redirect protection).
     const redirect = String(route.query.redirect || "");
     const safe = redirect.startsWith("/") && !redirect.startsWith("//");
-    await navigateTo(safe ? redirect : isAdmin.value ? "/admin" : "/dashboard");
+    await navigateTo(safe ? redirect : isAdmin.value ? "/admin" : "/menu");
     toast.success("Welcome back!");
   } catch (e: any) {
     error.value = e?.data?.statusMessage || e?.message || "Invalid email or password.";

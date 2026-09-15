@@ -17,7 +17,10 @@ export function useAuth() {
   async function fetchSession() {
     pending.value = true;
     try {
-      const { data } = await supabase.auth.getUser();
+      // Use the server as the source of truth so httpOnly cookies are
+      // honoured and the browser client doesn't need to read them via
+      // document.cookie. This is the same endpoint the middleware uses.
+      const data = await $fetch<{ user: any }>("/api/auth/session");
       user.value = data.user;
     } catch {
       user.value = null;

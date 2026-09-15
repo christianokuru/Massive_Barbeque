@@ -65,6 +65,17 @@ useSchemaOrg([
 ]);
 
 /* --------------------------------
+   Auth hydration — keep Navbar / guards in sync
+   on every full load (e.g. gateway return).
+--------------------------------- */
+const { fetchSession } = useAuth();
+onMounted(() => {
+  // Hydrate from the server once per app load; dashboard pages
+  // also call this but the dedup via `pending` makes it safe.
+  fetchSession();
+});
+
+/* --------------------------------
    Google Analytics 4 (Nuxt 4 safe)
 --------------------------------- */
 

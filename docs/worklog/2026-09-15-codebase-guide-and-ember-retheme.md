@@ -86,6 +86,11 @@ charcoal `#212121`. 4. Establish this `docs/worklog/` convention.
 4. Webhook deploy checklist still unchecked (needs public URL + live keys).
 5. OTP-login roadmap item still open.
 
+## Follow-up (same day)
+
+- Also shipped checkout logout fix (`app/composables/useAuth.ts:17` → server session, `app/app.vue:67` global hydrate) — see `docs/worklog/2026-09-15-checkout-logout-fix.md`.
+- Decision: post-login now goes to `/menu` (was `/dashboard`) for customers; admins still to `/admin`. Safe `?redirect=` still honoured. See `app/pages/login.vue:29` and `register.vue:39`.
+
 ## Open questions
 
 - Product images (`og-image.png`, Unsplash hero) still carry the old orange mood —

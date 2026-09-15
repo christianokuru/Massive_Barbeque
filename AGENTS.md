@@ -1,6 +1,6 @@
 # AGENTS.md — Massive Barbeque
 
-Nuxt 4 (Nitro) BBQ ordering app. Frontend in `app/`, file-based Nitro routes in `server/api/`, Supabase (Postgres + Auth) via `server/utils/supabase.ts`. Pricing helpers in `shared/utils/pricing.ts`. Deep reference: `docs/codebase.md` (full route/component/DB catalog + known bugs); live ops: `docs/payment-webhooks.md`.
+Nuxt 4 (Nitro) BBQ ordering app. Frontend in `app/`, file-based Nitro routes in `server/api/`, Supabase (Postgres + Auth) via `server/utils/supabase.ts`. Pricing helpers in `shared/utils/pricing.ts`. Deep reference: `docs/codebase.md` (full route/component/DB catalog + known bugs); live ops: `docs/payment-webhooks.md`; per-session work logs: `docs/worklog/` (where past work stopped — read the latest entry first).
 
 ## Commands (npm only — lockfile is `package-lock.json`)
 

@@ -48,12 +48,12 @@ defineProps<Props>();
     <!-- Left-aligned content column -->
     <div class="relative z-10 mx-auto w-full max-w-7xl px-6 pt-32 pb-20 lg:px-12">
       <div class="max-w-2xl text-left">
-        <p class="text-xs font-medium uppercase tracking-[0.3em] text-[#FFB693]">
+        <p class="text-xs font-medium uppercase tracking-[0.3em] text-tertiary">
           {{ eyebrow }}
         </p>
         <h1 class="m3-display-sm mt-6 text-white sm:m3-display-md lg:m3-display-xl">
           {{ titleTop }}<br />
-          <span class="text-[#FFB693]">{{ titleAccent }}</span>
+          <span class="text-tertiary">{{ titleAccent }}</span>
         </h1>
         <p class="m3-body-md mt-6 max-w-xl text-white/80">
           {{ description }}

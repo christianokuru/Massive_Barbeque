@@ -29,7 +29,7 @@ defineProps<Props>();
         <div class="flex shrink-0 items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-m3-1">
           <p class="m3-display-sm font-bold text-foreground">{{ rating }}</p>
           <div>
-            <div class="flex gap-0.5 text-primary" :aria-label="`Rated ${rating} out of 5`">
+            <div class="flex gap-0.5 text-tertiary" :aria-label="`Rated ${rating} out of 5`">
               <M3Icon v-for="n in 5" :key="n" name="star" :filled="true" :size="18" />
             </div>
             <p class="m3-body-sm mt-1 text-muted-foreground">{{ ratingLabel }}</p>

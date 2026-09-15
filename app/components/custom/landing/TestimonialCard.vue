@@ -49,7 +49,7 @@ const stars = computed(() => {
     class="flex w-[280px] shrink-0 snap-start flex-col rounded-2xl border border-border bg-card p-5 shadow-m3-1 sm:w-[340px] sm:p-6"
   >
     <div class="flex items-center justify-between gap-2">
-      <div class="flex gap-0.5 text-primary" :aria-label="`Rated ${stars} out of 5`">
+      <div class="flex gap-0.5 text-tertiary" :aria-label="`Rated ${stars} out of 5`">
         <M3Icon
           v-for="n in 5"
           :key="n"
@@ -59,7 +59,7 @@ const stars = computed(() => {
           :class="n <= stars ? '' : 'opacity-30'"
         />
       </div>
-      <M3Icon name="format_quote" :size="28" class="text-primary/30" />
+      <M3Icon name="format_quote" :size="28" class="text-tertiary/30" />
     </div>
 
     <blockquote class="m3-body-md mt-3 flex-1 text-foreground">

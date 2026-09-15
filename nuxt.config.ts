@@ -95,8 +95,8 @@ export default defineNuxtConfig({
         },
       ],
       meta: [
-        { name: "theme-color", content: "#FF6B35" },
-        { name: "msapplication-TileColor", content: "#FF6B35" },
+        { name: "theme-color", content: "#D84315" },
+        { name: "msapplication-TileColor", content: "#D84315" },
       ],
     },
   },

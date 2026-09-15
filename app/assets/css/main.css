@@ -7,9 +7,14 @@
 /* ============================================================
    M3 theme — Material Design 3 tokens as the single source of
    truth for this site's UI. See MATERIAL-3-DESIGN-PRINCIPLES.md.
-   Seed: #FF6B35 (brand) → warm tonal schemes, light + dark.
+   Brand palette: bold ember red #D84315 (actions/brand fills),
+   golden #FFD54F (reserved accent: stars, ratings, markers),
+   smoky brown #5D4037 (secondary containers, calm hovers),
+   charcoal #212121 (canvas). Warm tonal schemes, light + dark.
    shadcn variables below are *mapped* onto M3 roles, so every
    ui/* component follows the M3 system automatically.
+   NOTE: shadcn --primary points at the ember container (not the
+   M3 primary tint) so every CTA button is brand red by default.
    ============================================================ */
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -18,44 +23,44 @@
   color-scheme: light;
   --font-size: 16px;
 
-  /* ---- M3 color roles: light scheme (seed #FF6B35) ---- */
-  --m3-primary: #a63a00;
+  /* ---- M3 color roles: light scheme (brand #D84315 / #FFD54F / #5D4037) ---- */
+  --m3-primary: #b53a10;
   --m3-on-primary: #ffffff;
-  --m3-primary-container: #ffdbcc;
-  --m3-on-primary-container: #341100;
-  --m3-secondary: #77574e;
+  --m3-primary-container: #ffd9c7;
+  --m3-on-primary-container: #3f0d00;
+  --m3-secondary: #5d4037;
   --m3-on-secondary: #ffffff;
-  --m3-secondary-container: #ffdbd2;
-  --m3-on-secondary-container: #2c1512;
-  --m3-tertiary: #54632d;
+  --m3-secondary-container: #e9dbd1;
+  --m3-on-secondary-container: #2a1a13;
+  --m3-tertiary: #6e5600;
   --m3-on-tertiary: #ffffff;
-  --m3-tertiary-container: #d4eabb;
-  --m3-on-tertiary-container: #121f00;
+  --m3-tertiary-container: #ffe083;
+  --m3-on-tertiary-container: #3a2c00;
   --m3-error: #ba1a1a;
   --m3-on-error: #ffffff;
   --m3-error-container: #ffdad6;
   --m3-on-error-container: #410002;
-  --m3-background: #fff8f5;
-  --m3-on-background: #201a17;
-  --m3-surface: #fff8f5;
-  --m3-on-surface: #201a17;
-  --m3-surface-variant: #f5ded3;
-  --m3-on-surface-variant: #53433d;
-  --m3-surface-dim: #e8d6cd;
-  --m3-surface-bright: #fff8f5;
+  --m3-background: #fffaf5;
+  --m3-on-background: #221a14;
+  --m3-surface: #fffaf5;
+  --m3-on-surface: #221a14;
+  --m3-surface-variant: #f2e2d4;
+  --m3-on-surface-variant: #5a453a;
+  --m3-surface-dim: #eadfd3;
+  --m3-surface-bright: #fffaf5;
   --m3-surface-container-lowest: #ffffff;
-  --m3-surface-container-low: #fff1ea;
-  --m3-surface-container: #fceae1;
-  --m3-surface-container-high: #f7e4d9;
-  --m3-surface-container-highest: #f1dfd3;
-  --m3-outline: #85736c;
-  --m3-outline-variant: #d8c2b6;
+  --m3-surface-container-low: #fdf3e9;
+  --m3-surface-container: #f9ece0;
+  --m3-surface-container-high: #f3e5d6;
+  --m3-surface-container-highest: #ecddcc;
+  --m3-outline: #85736a;
+  --m3-outline-variant: #d9c6b6;
   --m3-shadow: #000000;
   --m3-scrim: #000000;
-  --m3-inverse-surface: #362f2c;
-  --m3-inverse-on-surface: #fbeee8;
-  --m3-inverse-primary: #ffb693;
-  --m3-surface-tint: #a63a00;
+  --m3-inverse-surface: #352a23;
+  --m3-inverse-on-surface: #fbeee5;
+  --m3-inverse-primary: #ffb59d;
+  --m3-surface-tint: #b53a10;
 
   /* ---- shadcn variables mapped onto M3 roles ---- */
   --background: var(--m3-surface);
@@ -64,14 +69,16 @@
   --card-foreground: var(--m3-on-surface);
   --popover: var(--m3-surface-container);
   --popover-foreground: var(--m3-on-surface);
-  --primary: var(--m3-primary);
-  --primary-foreground: var(--m3-on-primary);
+  /* Brand CTAs: bold ember fills with warm-white labels. */
+  --primary: var(--m3-primary-container);
+  --primary-foreground: var(--m3-on-primary-container);
   --secondary: var(--m3-secondary-container);
   --secondary-foreground: var(--m3-on-secondary-container);
   --muted: var(--m3-surface-container-high);
   --muted-foreground: var(--m3-on-surface-variant);
-  --accent: var(--m3-primary-container);
-  --accent-foreground: var(--m3-on-primary-container);
+  /* Calm earthy hovers — red is reserved for committed actions. */
+  --accent: var(--m3-secondary-container);
+  --accent-foreground: var(--m3-on-secondary-container);
   --destructive: var(--m3-error);
   --destructive-foreground: var(--m3-on-error);
   --border: var(--m3-outline-variant);
@@ -87,8 +94,8 @@
   --radius: 0.75rem; /* M3 shape medium */
   --sidebar: var(--m3-surface-container-low);
   --sidebar-foreground: var(--m3-on-surface);
-  --sidebar-primary: var(--m3-primary);
-  --sidebar-primary-foreground: var(--m3-on-primary);
+  --sidebar-primary: var(--m3-primary-container);
+  --sidebar-primary-foreground: var(--m3-on-primary-container);
   --sidebar-accent: var(--m3-secondary-container);
   --sidebar-accent-foreground: var(--m3-on-secondary-container);
   --sidebar-border: var(--m3-outline-variant);
@@ -118,44 +125,44 @@
 .dark {
   color-scheme: dark;
 
-  /* ---- M3 color roles: dark scheme (seed #FF6B35) ---- */
-  --m3-primary: #ffb693;
-  --m3-on-primary: #552000;
-  --m3-primary-container: #7e2a00;
-  --m3-on-primary-container: #ffdbcc;
-  --m3-secondary: #e7bdb0;
-  --m3-on-secondary: #442a22;
-  --m3-secondary-container: #5d3f37;
-  --m3-on-secondary-container: #ffdbd2;
-  --m3-tertiary: #b8cf8a;
-  --m3-on-tertiary: #252f04;
-  --m3-tertiary-container: #3b4a15;
-  --m3-on-tertiary-container: #d4eabb;
+  /* ---- M3 color roles: dark scheme (live: charcoal #212121 canvas) ---- */
+  --m3-primary: #ffb59d;
+  --m3-on-primary: #5c1400;
+  --m3-primary-container: #d84315;
+  --m3-on-primary-container: #fff7f0;
+  --m3-secondary: #d8c0b2;
+  --m3-on-secondary: #3e2a22;
+  --m3-secondary-container: #5d4037;
+  --m3-on-secondary-container: #f7ece3;
+  --m3-tertiary: #ffd54f;
+  --m3-on-tertiary: #3a2a00;
+  --m3-tertiary-container: #574300;
+  --m3-on-tertiary-container: #ffd54f;
   --m3-error: #ffb4ab;
   --m3-on-error: #690005;
   --m3-error-container: #93000a;
   --m3-on-error-container: #ffdad6;
-  --m3-background: #171210;
-  --m3-on-background: #f1dfd3;
-  --m3-surface: #171210;
-  --m3-on-surface: #f1dfd3;
-  --m3-surface-variant: #53433d;
-  --m3-on-surface-variant: #d8c2b6;
-  --m3-surface-dim: #171210;
-  --m3-surface-bright: #3f3834;
-  --m3-surface-container-lowest: #120d0b;
-  --m3-surface-container-low: #201a17;
-  --m3-surface-container: #251e1a;
-  --m3-surface-container-high: #2f2824;
-  --m3-surface-container-highest: #3b3330;
-  --m3-outline: #a08d85;
-  --m3-outline-variant: #53433d;
+  --m3-background: #212121;
+  --m3-on-background: #f7f1ea;
+  --m3-surface: #212121;
+  --m3-on-surface: #f7f1ea;
+  --m3-surface-variant: #4c4440;
+  --m3-on-surface-variant: #d3c4b8;
+  --m3-surface-dim: #212121;
+  --m3-surface-bright: #3d3d3d;
+  --m3-surface-container-lowest: #1a1a1a;
+  --m3-surface-container-low: #252525;
+  --m3-surface-container: #2a2a2a;
+  --m3-surface-container-high: #2f2f2f;
+  --m3-surface-container-highest: #353535;
+  --m3-outline: #a08c80;
+  --m3-outline-variant: #51463f;
   --m3-shadow: #000000;
   --m3-scrim: #000000;
-  --m3-inverse-surface: #f1dfd3;
-  --m3-inverse-on-surface: #362f2c;
-  --m3-inverse-primary: #a63a00;
-  --m3-surface-tint: #ffb693;
+  --m3-inverse-surface: #f5eee6;
+  --m3-inverse-on-surface: #212121;
+  --m3-inverse-primary: #b53a10;
+  --m3-surface-tint: #ffb59d;
 
   /* shadcn mappings re-resolve automatically via var() above */
 }

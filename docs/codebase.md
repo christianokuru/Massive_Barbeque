@@ -109,10 +109,17 @@ Server keys are read via `useRuntimeConfig()` in `nuxt.config.ts`.
   is server-safe: on the server it forwards the `cookie` header to this endpoint;
   on the client it uses `useAuth().fetchSession()`. Guests → `/login?redirect=`,
   non-admins → `/`.
-- Login/register pages only honor internal `redirect`
-  (`startsWith("/") && !startsWith("//")`). After login: admins → `/admin`,
-  others → `/dashboard` (or the safe redirect).
-- Password reset: `requestPasswordReset` uses `window.location.origin/reset-password`
+ - Login/register pages only honor internal `redirect`
+   (`startsWith("/") && !startsWith("//")`). After login: admins → `/admin`,
+   others → `/menu` (or the safe redirect) — `/dashboard` is reachable via
+   `Account` in the Navbar, not the default landing after auth. Fixed
+   2026-09-15 from the old `→ /dashboard` to reduce friction to ordering.
+ - Auth hydration: `useAuth.fetchSession` now calls `GET /api/auth/session`
+   (server as source of truth, works with `httpOnly` cookies) and `app/app.vue`
+   hydrates once globally on mount so Navbar/auth links stay correct after
+   full navigations (e.g. gateway return to `/checkout/confirm`). See
+   `docs/worklog/2026-09-15-checkout-logout-fix.md`.
+ - Password reset: `requestPasswordReset` uses `window.location.origin/reset-password`
   (client-only); `reset-password.vue` waits for a session or a `PASSWORD_RECOVERY`
   event, with an 8s timeout that surfaces "invalid or expired" links.
 
@@ -137,8 +144,10 @@ Server keys are read via `useRuntimeConfig()` in `nuxt.config.ts`.
 
 Owns SEO defaults (`titleTemplate "%s | Massive Barbeque"`), a hardcoded canonical
 (`https://massivebarbeque.com${route.path}` — do not swap in the Host header),
-Schema.org `Restaurant` + `WebSite` JSON-LD, and the global `<Toaster>`
-(`position="bottom-right"`, 4s, rich colors). GA4 is hand-injected once
+Schema.org `Restaurant` + `WebSite` JSON-LD, the global `<Toaster>`
+(`position="bottom-right"`, 4s, rich colors), and a global auth hydrate
+(`useAuth().fetchSession()` on mount so `Navbar` doesn't flash "Log in" after
+full reloads/gateway returns). GA4 is hand-injected once
 (`window.gtag` dedup, `send_page_view: false`) with manual `page_view` on
 `route.fullPath` change, gated on `config.public.gaId` — don't double-instrument.
 
@@ -184,9 +193,11 @@ Public pages use the default layout with no middleware; all `/dashboard/*` use
   If the provider says paid, a missing local order is recovered via the verify
   response's embedded order id (mangled return URLs). Paid/received link to
   `/menu` + `/dashboard/orders`; failed links to `/checkout` + `/menu`.
-- `login.vue` / `register.vue` (`auth` layout): 404 from login reveals the
-  `Create one → /register` link; register surfaces `emailConfirmationRequired`
-  and `signedInInstead` notices (1.8s pause before redirect on the latter).
+ - `login.vue` / `register.vue` (`auth` layout): 404 from login reveals the
+   `Create one → /register` link; register surfaces `emailConfirmationRequired`
+   and `signedInInstead` notices (1.8s pause before redirect on the latter).
+   Default post-auth landing is `→ /menu` for customers (`→ /admin` for admins),
+   or the safe `?redirect=` if present.
 - `forgot-password.vue`: always shows the non-enumerating
   "If an account exists…" notice.
 - `dashboard/index.vue`: greeting by hour is set `onMounted` (avoids hydration
@@ -279,10 +290,12 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
 
 ### 4.5 Composables & shared client state
 
-- `useAuth.ts`: session façade. State keys `auth:user`, `auth:pending`,
-  `auth:isOwner`. `isAdmin` comes from `app_metadata.role` in the JWT;
-  `isOwner` comes **only** from `GET /api/auth/session` — never derive it from
-  the JWT. `logout()` always lands on `/`.
+ - `useAuth.ts`: session façade. State keys `auth:user`, `auth:pending`,
+   `auth:isOwner`. `isAdmin` comes from `app_metadata.role` in the JWT;
+   `isOwner` comes **only** from `GET /api/auth/session` — never derive it from
+   the JWT. `fetchSession` also reads `GET /api/auth/session` (server as
+   source of truth, works with `httpOnly` cookies — not `supabase.auth.getUser`
+   via `document.cookie`). `logout()` always lands on `/`.
 - `useCart.ts` + `cart/{types,storage,ops}`: local-first, synchronous, zero
   network until checkout. `id === variantId`, unique by variant; `MAX_QTY = 99`;
   `applyAdd` merges lines, `applySetQty` with qty < 1 removes, `applyRemove`
@@ -364,9 +377,13 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
   continues), `stampAdminRole`/`stripAdminRole` (merge/delete `app_metadata.role`
   via service client; sessions keep old JWT until re-login), `findUserIdByEmail`
   (paginated `listUsers`, up to 10×1000, case-insensitive).
-- `adminBootstrap.ts`: `ensureAdminRole` — allow-listed (or invited) emails get
-  stamped on sign-up/sign-in; invites are deleted + audited on consume.
-- `mappers.ts`: snake→camel for category/variant/product/order-item/payment/order
+ - `adminBootstrap.ts`: `ensureAdminRole` — allow-listed (or invited) emails get
+   stamped on sign-up/sign-in; invites are deleted + audited on consume.
+ - `orderClaim.ts`: `claimGuestOrders(userId, email)` — service-role update of
+   `user_id IS NULL AND customer_email ILIKE email` rows to `userId`
+   (case-insensitive exact, JS re-filter for `%`/`_` safety). Called from
+   `auth/login.post` and `auth/register.post` after password-proven auth.
+ - `mappers.ts`: snake→camel for category/variant/product/order-item/payment/order
   (prices stringified, e.g. `price: String(price ?? "0")`). `toAddress` exists but
   no current route uses it; `toOrder` passes `delivery_address` through raw
   (hence the snake_case quirk in §4.3).
@@ -375,8 +392,8 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
 
 | Route | Guard | Rate | Notes |
 |---|---|---|---|
-| `POST /api/auth/login` | none | `login:<ip>` 10/15min (+`Retry-After`) | 404 unknown email / 401 wrong password; `ensureAdminRole` on success |
-| `POST /api/auth/register` | none | `register:<ip>` 5/hr (+`Retry-After`) | duplicate → sign-in attempt; `{signedInInstead}` / `{emailConfirmationRequired}` |
+| `POST /api/auth/login` | none | `login:<ip>` 10/15min (+`Retry-After`) | 404 unknown email / 401 wrong password; `ensureAdminRole` + guest-order claim on success |
+| `POST /api/auth/register` | none | `register:<ip>` 5/hr (+`Retry-After`) | duplicate → sign-in attempt; `{signedInInstead}` / `{emailConfirmationRequired}`; claims guest orders when session exists |
 | `POST /api/auth/logout` | none | none | `supabase.auth.signOut()`, `{success: true}` |
 | `GET /api/auth/session` | soft | none | `{user, isOwner}`, never throws |
 
@@ -393,7 +410,11 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
 
 - `POST /api/orders` (§3.1): guest-friendly, service-role writes, zod caps
   (≤50 lines, qty 1–99, merged + capped at 99 per variant).
-- `GET /api/orders`: `requireUser`, own orders newest-first.
+- `GET /api/orders`: `requireUser`, then service-role fetch of `owned
+  (user_id = me)` plus `guest (user_id IS NULL AND customer_email ILIKE me.email)`
+  merged newest-first via `toOrder`. RLS hides guest rows from the user client, so
+  service role is required (same pattern as `[id].get`). Makes pre-account guest
+  orders visible immediately after login, without waiting for the async claim.
 - `GET /api/orders/:id`: service-role read + code authz — owner, `role ===
   "admin"`, or guest orders (`user_id` null). Keep that shape: the guest
   checkout-confirm page depends on it.

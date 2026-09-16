@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getSupabase, getServiceSupabase } from "~~/server/utils/supabase";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { ensureAdminRole } from "~~/server/utils/adminBootstrap";
+import { claimGuestOrders } from "~~/server/utils/orderClaim";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -66,6 +67,10 @@ export default defineEventHandler(async (event) => {
 
     // Bootstrap: promote allow-listed emails to admin on sign-in.
     await ensureAdminRole(data.user.id, data.user.email || body.email);
+
+    // Link any guest orders that used the same email before this account
+    // existed. Email ownership is proven by the successful password check above.
+    await claimGuestOrders(data.user.id, data.user.email || body.email);
 
     // Session cookies are set on the response by the Supabase server
     // client — the browser stays logged in across SSR and client nav.

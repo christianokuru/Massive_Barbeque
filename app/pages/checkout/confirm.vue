@@ -3,6 +3,7 @@ import M3Icon from "@/components/M3Icon.vue";
 
 useSeoMeta({ title: "Order confirmation | Massive Barbeque" });
 
+const { isLoggedIn } = useAuth();
 const route = useRoute();
 const orderId = computed(() => route.query.order as string | undefined);
 // Paystack returns `reference`; Flutterwave returns `tx_ref` + `transaction_id` + `status`.
@@ -101,6 +102,15 @@ const orderLabel = computed(() => order.value?.orderNumber ?? orderId.value ?? "
         <NuxtLink to="/menu" class="rounded-full bg-primary px-8 py-3 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">Order more</NuxtLink>
         <NuxtLink to="/dashboard/orders" class="rounded-full border border-border px-8 py-3 text-center text-xs font-medium uppercase tracking-widest transition-colors hover:bg-secondary-container/60">Track order</NuxtLink>
       </div>
+      <p v-if="!isLoggedIn && order?.customerEmail" class="m3-body-sm mt-4 text-muted-foreground">
+        Want this in your account?
+        <NuxtLink
+          :to="`/register?email=${encodeURIComponent(order.customerEmail)}&redirect=/dashboard/orders`"
+          class="font-medium text-primary hover:underline"
+          >Create account with {{ order.customerEmail }}</NuxtLink
+        >
+        — it will appear automatically.
+      </p>
     </div>
 
     <!-- Failed -->
@@ -136,6 +146,15 @@ const orderLabel = computed(() => order.value?.orderNumber ?? orderId.value ?? "
         <NuxtLink to="/menu" class="rounded-full bg-primary px-8 py-3 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">Order more</NuxtLink>
         <NuxtLink to="/dashboard/orders" class="rounded-full border border-border px-8 py-3 text-center text-xs font-medium uppercase tracking-widest transition-colors hover:bg-secondary-container/60">Track order</NuxtLink>
       </div>
+      <p v-if="!isLoggedIn && order?.customerEmail" class="m3-body-sm mt-4 text-muted-foreground">
+        Want this in your account?
+        <NuxtLink
+          :to="`/register?email=${encodeURIComponent(order.customerEmail)}&redirect=/dashboard/orders`"
+          class="font-medium text-primary hover:underline"
+          >Create account with {{ order.customerEmail }}</NuxtLink
+        >
+        — it will appear automatically.
+      </p>
     </div>
   </div>
 </template>

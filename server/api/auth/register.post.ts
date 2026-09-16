@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getSupabase } from "~~/server/utils/supabase";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { ensureAdminRole } from "~~/server/utils/adminBootstrap";
+import { claimGuestOrders } from "~~/server/utils/orderClaim";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -57,6 +58,7 @@ export default defineEventHandler(async (event) => {
         });
       }
       await ensureAdminRole(signInData.user.id, signInData.user.email || body.email);
+      await claimGuestOrders(signInData.user.id, signInData.user.email || body.email);
       return { success: true, user: signInData.user, signedInInstead: true };
     }
 
@@ -67,6 +69,13 @@ export default defineEventHandler(async (event) => {
     }
 
     await ensureAdminRole(data.user.id, data.user.email || body.email);
+
+    // Only claim when a session was actually created (confirm-email OFF).
+    // If email confirmation is required, the user isn't logged in yet —
+    // they'll claim on first real login after clicking the link.
+    if (data.session) {
+      await claimGuestOrders(data.user.id, data.user.email || body.email);
+    }
 
     // No session here means "Confirm email" is enabled in Supabase Auth
     // settings — the user must click the email link before signing in.

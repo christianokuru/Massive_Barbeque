@@ -11,7 +11,7 @@ useSeoMeta({ title: "Create account | Massive Barbeque" });
 
 const { register, isAdmin } = useAuth();
 const route = useRoute();
-const form = ref({ name: "", email: "", password: "" });
+const form = ref({ name: "", email: String(route.query.email || ""), password: "" });
 const error = ref("");
 const notice = ref("");
 const loading = ref(false);

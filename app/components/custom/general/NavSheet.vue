@@ -73,7 +73,7 @@ watch(() => route.fullPath, () => {
       <div class="mt-auto border-t border-border p-4">
         <NuxtLink
           to="/menu"
-          class="block rounded-full bg-primary px-8 py-4 text-center text-sm font-medium uppercase tracking-widest text-primary-foreground shadow-m3-2 transition-colors hover:bg-primary/90"
+          class="block rounded-full bg-primary px-8 py-4 text-center text-sm font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90"
           @click="setOpen(false)"
         >
           Order now

@@ -16,7 +16,7 @@ defineProps<Props>();
 </script>
 
 <template>
-  <div class="relative overflow-hidden rounded-xl bg-muted shadow-m3-1">
+  <div class="relative overflow-hidden rounded-xl bg-muted">
     <div class="flex aspect-[4/3] items-center justify-center overflow-hidden">
       <img
         v-if="imageUrl"
@@ -29,11 +29,11 @@ defineProps<Props>();
       </div>
     </div>
     <div class="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-      <Badge v-if="categoryName" variant="secondary" class="shadow-m3-1">
+      <Badge v-if="categoryName" variant="secondary">
         {{ categoryName }}
       </Badge>
       <span v-else />
-      <Badge v-if="featured" class="shadow-m3-1">Featured</Badge>
+      <Badge v-if="featured">Featured</Badge>
     </div>
   </div>
 </template>

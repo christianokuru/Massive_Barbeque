@@ -55,7 +55,7 @@ function formatDate(iso: string) {
         :aria-selected="activeFilter === f.id"
         class="inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors"
         :class="activeFilter === f.id
-          ? 'border-transparent bg-secondary-container text-on-secondary-container shadow-m3-1'
+          ? 'border-transparent bg-secondary-container text-on-secondary-container'
           : 'border-border bg-card text-muted-foreground hover:text-foreground'"
         @click="activeFilter = f.id"
       >
@@ -70,7 +70,7 @@ function formatDate(iso: string) {
         v-for="o in visible"
         :key="o.id"
         :to="`/dashboard/orders/${o.id}`"
-        class="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-m3-1 transition-shadow hover:shadow-m3-2"
+        class="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-shadow"
       >
         <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-container text-on-primary-container">
           <M3Icon name="shopping_bag" :size="24" />
@@ -89,7 +89,7 @@ function formatDate(iso: string) {
     </div>
 
     <!-- Empty states -->
-    <div v-else-if="all.length" class="mt-4 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center shadow-m3-1">
+    <div v-else-if="all.length" class="mt-4 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center">
       <span class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
         <M3Icon name="search_off" :size="32" />
       </span>
@@ -103,13 +103,13 @@ function formatDate(iso: string) {
         Show everything
       </button>
     </div>
-    <div v-else class="mt-6 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center shadow-m3-1">
+    <div v-else class="mt-6 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center">
       <span class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
         <M3Icon name="outdoor_grill" :size="32" />
       </span>
       <p class="m3-title-md mt-4">No orders yet</p>
       <p class="m3-body-md mt-1 text-muted-foreground">Your history will show up here.</p>
-      <NuxtLink to="/menu" class="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-1 transition-colors hover:bg-primary/90">
+      <NuxtLink to="/menu" class="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">
         <M3Icon name="restaurant_menu" :size="18" />
         Browse the menu
       </NuxtLink>

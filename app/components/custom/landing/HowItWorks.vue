@@ -20,7 +20,7 @@ defineProps<Props>();
 <template>
   <section class="bg-muted px-6 py-20">
     <div class="mx-auto grid max-w-6xl gap-8 md:grid-cols-3">
-      <div v-for="step in steps" :key="step.title" class="rounded-xl bg-card p-8 shadow-m3-1">
+      <div v-for="step in steps" :key="step.title" class="rounded-xl bg-card p-8">
         <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
           <M3Icon :name="step.icon" :size="28" />
         </span>

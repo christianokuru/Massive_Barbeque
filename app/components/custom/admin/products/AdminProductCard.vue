@@ -63,7 +63,7 @@ async function handleDelete() {
         <Button
           size="icon"
           variant="secondary"
-          class="size-8 rounded-full text-primary shadow-m3-1"
+          class="size-8 rounded-full text-primary"
           aria-label="Edit product"
           @click="openEdit(product.id)"
         >
@@ -72,7 +72,7 @@ async function handleDelete() {
         <Button
           size="icon"
           variant="secondary"
-          class="size-8 rounded-full text-destructive shadow-m3-1"
+          class="size-8 rounded-full text-destructive"
           aria-label="Delete product"
           @click="confirmOpen = true"
         >

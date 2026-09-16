@@ -49,7 +49,7 @@ function formatDate(iso: string) {
 <template>
   <div>
     <!-- Hero -->
-    <section class="relative overflow-hidden rounded-m3-xl bg-primary-container text-on-primary-container shadow-m3-2">
+    <section class="relative overflow-hidden rounded-m3-xl bg-primary-container text-on-primary-container">
       <M3Icon
         name="outdoor_grill"
         :size="220"
@@ -64,7 +64,7 @@ function formatDate(iso: string) {
         <div class="mt-6 flex flex-col gap-3 sm:flex-row">
           <NuxtLink
             to="/menu"
-            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-1 transition-colors hover:bg-primary/90"
+            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <M3Icon name="restaurant_menu" :size="18" />
             Order now
@@ -85,7 +85,7 @@ function formatDate(iso: string) {
       <div
         v-for="s in stats"
         :key="s.label"
-        class="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-m3-1 sm:p-5"
+        class="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5"
       >
         <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
           <M3Icon :name="s.icon" :size="24" />
@@ -101,7 +101,7 @@ function formatDate(iso: string) {
     <section v-if="spotlight" aria-label="Active order" class="mt-4">
       <NuxtLink
         :to="`/dashboard/orders/${spotlight.id}`"
-        class="group flex items-center gap-4 rounded-2xl bg-tertiary-container p-4 text-on-tertiary-container shadow-m3-1 transition-shadow hover:shadow-m3-2 sm:p-5"
+        class="group flex items-center gap-4 rounded-2xl bg-tertiary-container p-4 text-on-tertiary-container transition-shadow sm:p-5"
       >
         <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tertiary text-on-tertiary">
           <M3Icon name="local_fire_department" :size="24" filled />
@@ -128,7 +128,7 @@ function formatDate(iso: string) {
           v-for="o in recent"
           :key="o.id"
           :to="`/dashboard/orders/${o.id}`"
-          class="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-m3-1 transition-shadow hover:shadow-m3-2"
+          class="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-shadow"
         >
           <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-container text-on-primary-container">
             <M3Icon name="shopping_bag" :size="24" />
@@ -143,13 +143,13 @@ function formatDate(iso: string) {
           <M3Icon name="chevron_right" :size="20" class="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
         </NuxtLink>
       </div>
-      <div v-else class="mt-4 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center shadow-m3-1">
+      <div v-else class="mt-4 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center">
         <span class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
           <M3Icon name="outdoor_grill" :size="32" />
         </span>
         <p class="m3-title-md mt-4">No orders yet</p>
         <p class="m3-body-md mt-1 text-muted-foreground">Hungry? Your feast is one tap away.</p>
-        <NuxtLink to="/menu" class="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-1 transition-colors hover:bg-primary/90">
+        <NuxtLink to="/menu" class="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">
           <M3Icon name="restaurant_menu" :size="18" />
           Browse the menu
         </NuxtLink>

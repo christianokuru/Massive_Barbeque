@@ -262,7 +262,7 @@ async function handleSubmit() {
             <Button
               type="button"
               size="sm"
-              class="absolute right-3 bottom-3 shadow-md"
+              class="absolute right-3 bottom-3"
               :disabled="uploading"
               @click="fileInput?.click()"
             >

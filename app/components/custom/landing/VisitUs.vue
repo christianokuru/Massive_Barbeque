@@ -29,7 +29,7 @@ defineProps<Props>();
 
 <template>
   <section class="mx-auto max-w-7xl px-6 pb-20">
-    <div class="overflow-hidden rounded-3xl bg-primary-container text-on-primary-container shadow-m3-2">
+    <div class="overflow-hidden rounded-3xl bg-primary-container text-on-primary-container">
       <div class="grid gap-10 p-8 sm:p-12 lg:grid-cols-2 lg:items-center">
         <div>
           <p class="text-xs font-medium uppercase tracking-[0.4em]">{{ eyebrow }}</p>
@@ -38,7 +38,7 @@ defineProps<Props>();
           <div class="mt-8 flex flex-col gap-3 sm:flex-row">
             <NuxtLink
               :to="primaryCta.to"
-              class="rounded-full bg-primary px-8 py-4 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-2 transition-colors hover:bg-primary/90"
+              class="rounded-full bg-primary px-8 py-4 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90"
             >
               {{ primaryCta.label }}
             </NuxtLink>
@@ -54,7 +54,7 @@ defineProps<Props>();
           <li
             v-for="row in info"
             :key="row.label"
-            class="flex items-center gap-4 rounded-2xl bg-primary px-5 py-4 text-primary-foreground shadow-m3-1"
+            class="flex items-center gap-4 rounded-2xl bg-primary px-5 py-4 text-primary-foreground"
           >
             <M3Icon :name="row.icon" :size="28" />
             <div>

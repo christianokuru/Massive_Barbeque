@@ -16,7 +16,7 @@ function isActive(to: string) {
 
 <template>
   <div class="mx-auto max-w-6xl px-4 pt-20 pb-16 sm:pt-24 md:px-6">
-    <nav aria-label="Account" class="mb-8 flex gap-1 overflow-x-auto rounded-full border border-border bg-card p-1.5 shadow-m3-1 sm:inline-flex">
+    <nav aria-label="Account" class="mb-8 flex gap-1 overflow-x-auto rounded-full border border-border bg-card p-1.5 sm:inline-flex">
       <NuxtLink
         v-for="t in tabs"
         :key="t.to"

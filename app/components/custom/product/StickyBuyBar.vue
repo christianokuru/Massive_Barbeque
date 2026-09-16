@@ -26,7 +26,7 @@ const emit = defineEmits<{
   >
     <div
       v-if="visible"
-      class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-container px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-m3-3 md:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-container px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden"
     >
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -36,7 +36,7 @@ const emit = defineEmits<{
         <button
           type="button"
           :disabled="!canBuy"
-          class="rounded-full bg-primary px-8 py-3 text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-2 transition-colors hover:bg-primary/90 disabled:opacity-50"
+          class="rounded-full bg-primary px-8 py-3 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           @click="emit('add')"
         >
           Add to cart

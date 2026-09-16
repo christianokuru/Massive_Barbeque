@@ -56,7 +56,7 @@ const addressLines = computed(() => {
 
     <div v-if="order" class="mt-4">
       <!-- Header card -->
-      <section class="overflow-hidden rounded-3xl border border-border bg-card shadow-m3-1">
+      <section class="overflow-hidden rounded-3xl border border-border bg-card">
         <div class="bg-primary-container p-6 text-on-primary-container sm:p-8">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
@@ -112,7 +112,7 @@ const addressLines = computed(() => {
 
       <div class="mt-4 grid gap-4 lg:grid-cols-2">
         <!-- Fulfillment -->
-        <section class="rounded-3xl border border-border bg-card p-6 shadow-m3-1">
+        <section class="rounded-3xl border border-border bg-card p-6">
           <h2 class="m3-title-md flex items-center gap-2">
             <M3Icon :name="order.fulfillmentType === 'delivery' ? 'local_shipping' : 'storefront'" :size="22" class="text-primary" />
             {{ order.fulfillmentType === "delivery" ? "Delivery details" : "Pickup details" }}
@@ -129,7 +129,7 @@ const addressLines = computed(() => {
         </section>
 
         <!-- Payment -->
-        <section class="rounded-3xl border border-border bg-card p-6 shadow-m3-1">
+        <section class="rounded-3xl border border-border bg-card p-6">
           <h2 class="m3-title-md flex items-center gap-2">
             <M3Icon name="credit_card" :size="22" class="text-primary" />
             Payment
@@ -142,7 +142,7 @@ const addressLines = computed(() => {
       </div>
 
       <!-- Items -->
-      <section class="mt-4 overflow-hidden rounded-3xl border border-border bg-card shadow-m3-1">
+      <section class="mt-4 overflow-hidden rounded-3xl border border-border bg-card">
         <h2 class="m3-title-md flex items-center gap-2 p-6 pb-2">
           <M3Icon name="shopping_bag" :size="22" class="text-primary" />
           {{ (order.items ?? []).length }} item{{ (order.items ?? []).length === 1 ? "" : "s" }}
@@ -164,7 +164,7 @@ const addressLines = computed(() => {
       </section>
 
       <div class="mt-6 flex flex-col gap-3 sm:flex-row">
-        <NuxtLink to="/menu" class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-1 transition-colors hover:bg-primary/90">
+        <NuxtLink to="/menu" class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">
           <M3Icon name="restaurant_menu" :size="18" />
           Order again
         </NuxtLink>
@@ -174,7 +174,7 @@ const addressLines = computed(() => {
       </div>
     </div>
 
-    <div v-else class="mt-6 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center shadow-m3-1">
+    <div v-else class="mt-6 rounded-3xl border border-dashed border-border bg-card px-6 py-14 text-center">
       <span class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
         <M3Icon name="search_off" :size="32" />
       </span>

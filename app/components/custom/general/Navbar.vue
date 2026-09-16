@@ -113,7 +113,7 @@ onMounted(() => {
   <nav
     :class="[
       'fixed top-0 right-0 left-0 z-50 transition-[background-color,box-shadow] duration-300',
-      surfaced ? 'bg-background/95 shadow-m3-1 backdrop-blur-sm' : 'bg-scrim/20 backdrop-blur-sm',
+      surfaced ? 'bg-background/95 backdrop-blur-sm' : 'bg-scrim/20 backdrop-blur-sm',
     ]"
     aria-label="Primary"
   >

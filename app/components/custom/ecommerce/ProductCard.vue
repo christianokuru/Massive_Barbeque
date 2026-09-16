@@ -76,7 +76,7 @@ function quickAdd() {
   <!-- Showcase: image-dominant rail card (see reference middle frame) -->
   <article
     v-if="showcase"
-    class="group relative overflow-hidden rounded-xl bg-muted shadow-m3-1 transition-shadow hover:shadow-m3-2"
+    class="group relative overflow-hidden rounded-xl bg-muted transition-shadow"
   >
     <NuxtLink
       :to="detailTo"
@@ -118,7 +118,7 @@ function quickAdd() {
     <button
       type="button"
       :aria-label="added ? 'Added to cart' : `Quick add ${product.name} to cart`"
-      class="absolute right-2.5 bottom-2.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-m3-2 transition-transform after:absolute after:-inset-2 after:content-[''] hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      class="absolute right-2.5 bottom-2.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform after:absolute after:-inset-2 after:content-[''] hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       @click="quickAdd"
     >
       <M3Icon :name="added ? 'check' : 'add_shopping_cart'" :size="16" />
@@ -127,7 +127,7 @@ function quickAdd() {
 
   <article
     v-else
-    class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-m3-1 transition-shadow hover:shadow-m3-2"
+    class="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow"
   >
     <!-- Media -->
     <NuxtLink :to="detailTo" :aria-label="product.name" class="relative block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
@@ -144,11 +144,11 @@ function quickAdd() {
         </div>
       </div>
       <div :class="['absolute flex items-start justify-between gap-2', compact ? 'inset-x-2 top-2' : 'inset-x-3 top-3']">
-        <Badge v-if="product.category?.name" variant="secondary" class="shadow-m3-1">
+        <Badge v-if="product.category?.name" variant="secondary">
           {{ product.category.name }}
         </Badge>
         <span v-else />
-        <Badge v-if="product.featured" class="shadow-m3-1">Featured</Badge>
+        <Badge v-if="product.featured">Featured</Badge>
       </div>
     </NuxtLink>
 
@@ -169,7 +169,7 @@ function quickAdd() {
           type="button"
           :aria-label="added ? 'Added to cart' : `Quick add ${product.name} to cart`"
           :class="[
-            'inline-flex shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container shadow-m3-1 transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60',
+            'inline-flex shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60',
             compact ? 'h-10 w-10' : 'h-11 w-11',
           ]"
           @click="quickAdd"

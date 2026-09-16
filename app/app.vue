@@ -128,7 +128,7 @@ watch(
       :rich-colors="true"
       :close-button="true"
       :toast-options="{
-        class: 'border-0 shadow-sm',
+        class: 'border-0',
         classes: {
           toast: 'border border-border text-foreground',
           success: 'bg-green-50 border-green-200 text-green-900 dark:bg-green-950 dark:border-green-800 dark:text-green-100',

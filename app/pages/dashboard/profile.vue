@@ -40,7 +40,7 @@ const links = [
     <h1 class="m3-display-sm mt-2 sm:m3-display-md">Profile</h1>
 
     <!-- Identity card -->
-    <section class="relative mt-6 overflow-hidden rounded-3xl bg-primary-container text-on-primary-container shadow-m3-2">
+    <section class="relative mt-6 overflow-hidden rounded-3xl bg-primary-container text-on-primary-container">
       <M3Icon
         name="person"
         :size="200"
@@ -64,7 +64,7 @@ const links = [
     </section>
 
     <!-- Details -->
-    <section aria-label="Account details" class="mt-4 rounded-3xl border border-border bg-card shadow-m3-1">
+    <section aria-label="Account details" class="mt-4 rounded-3xl border border-border bg-card">
       <dl class="divide-y divide-border px-6">
         <div class="flex items-center gap-4 py-4">
           <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
@@ -93,7 +93,7 @@ const links = [
         v-for="l in links"
         :key="l.to + l.label"
         :to="l.to"
-        class="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-m3-1 transition-shadow hover:shadow-m3-2"
+        class="group flex items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-shadow"
       >
         <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-container text-on-primary-container">
           <M3Icon :name="l.icon" :size="22" />

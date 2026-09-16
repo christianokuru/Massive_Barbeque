@@ -46,7 +46,7 @@ const stars = computed(() => {
 
 <template>
   <figure
-    class="flex w-[280px] shrink-0 snap-start flex-col rounded-2xl border border-border bg-card p-5 shadow-m3-1 sm:w-[340px] sm:p-6"
+    class="flex w-[280px] shrink-0 snap-start flex-col rounded-2xl border border-border bg-card p-5 sm:w-[340px] sm:p-6"
   >
     <div class="flex items-center justify-between gap-2">
       <div class="flex gap-0.5 text-tertiary" :aria-label="`Rated ${stars} out of 5`">

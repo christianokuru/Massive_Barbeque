@@ -26,7 +26,7 @@ defineProps<Props>();
           <h2 class="m3-headline-lg mt-3 max-w-xl sm:m3-display-sm">{{ title }}</h2>
         </div>
         <!-- Aggregate rating -->
-        <div class="flex shrink-0 items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-m3-1">
+        <div class="flex shrink-0 items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4">
           <p class="m3-display-sm font-bold text-foreground">{{ rating }}</p>
           <div>
             <div class="flex gap-0.5 text-tertiary" :aria-label="`Rated ${rating} out of 5`">

@@ -207,7 +207,7 @@ onUnmounted(() => observer?.disconnect());
             <button
               type="button"
               :disabled="!canBuy"
-              class="rounded-full bg-primary px-8 py-3 text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-2 transition-colors hover:bg-primary/90 disabled:opacity-50 sm:flex-1"
+              class="rounded-full bg-primary px-8 py-3 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 sm:flex-1"
               @click="addToCart"
             >
               Add to cart

@@ -61,7 +61,7 @@ defineProps<Props>();
         <div class="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <NuxtLink
             :to="primaryCta.to"
-            class="rounded-full bg-primary px-8 py-4 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground shadow-m3-2 transition-colors hover:bg-primary/90"
+            class="rounded-full bg-primary px-8 py-4 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90"
           >
             {{ primaryCta.label }}
           </NuxtLink>

@@ -87,7 +87,7 @@ function quickAdd(side: Record<string, any>) {
         <button
           type="button"
           :aria-label="addedId === side.id ? 'Added to cart' : `Add ${side.name} to cart`"
-          class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container shadow-m3-1 transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           @click="quickAdd(side)"
         >
           <M3Icon :name="addedId === side.id ? 'check' : 'add'" :size="20" />

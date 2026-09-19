@@ -8,6 +8,9 @@ import { claimGuestOrders } from "~~/server/utils/orderClaim";
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
+  // Staff door (`/admin/login`) sends `portal: "admin"` for a tighter
+  // throttle, generic errors, and an admin-only gate below.
+  portal: z.literal("admin").optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -18,10 +21,16 @@ export default defineEventHandler(async (event) => {
     // vs 401 wrong password) are an intentional product decision.
     const preBody = await readBody(event).catch(() => ({}));
     const rateEmail = String((preBody as any)?.email || "").toLowerCase().slice(0, 254);
+    const adminPortal = (preBody as any)?.portal === "admin";
     const ip = getClientIp(event);
-    const { limited, retryAfterSecs } = isRateLimited(`login:${ip}:${rateEmail}`, {
-      limit: 10,
-      windowSecs: 900,
+    // Staff door gets its own bucket: 5 attempts per IP+email per hour.
+    // Separate key so customer-login traffic can't eat the admin budget.
+    const bucket = adminPortal
+      ? { key: `admin-login:${ip}:${rateEmail}`, limit: 5, windowSecs: 3600 }
+      : { key: `login:${ip}:${rateEmail}`, limit: 10, windowSecs: 900 };
+    const { limited, retryAfterSecs } = isRateLimited(bucket.key, {
+      limit: bucket.limit,
+      windowSecs: bucket.windowSecs,
     });
     if (limited) {
       setResponseHeader(event, "Retry-After", String(retryAfterSecs));
@@ -55,6 +64,11 @@ export default defineEventHandler(async (event) => {
       if (users.length < 1000) break;
     }
     if (!exists && lookupOk) {
+      // Staff door never confirms account existence — one generic answer
+      // for unknown email, wrong password, and non-admin alike.
+      if (adminPortal) {
+        throw createError({ statusCode: 401, statusMessage: "Invalid email or password." });
+      }
       throw createError({
         statusCode: 404,
         statusMessage: "No account found for this email. Create one to continue.",
@@ -73,6 +87,19 @@ export default defineEventHandler(async (event) => {
 
     // Bootstrap: promote allow-listed emails to admin on sign-in.
     await ensureAdminRole(data.user.id, data.user.email || body.email);
+
+    if (adminPortal) {
+      // Staff-door gate: re-read the user — ensureAdminRole may have just
+      // stamped the role, so the sign-in response can be stale. Non-staff
+      // credentials get the session revoked immediately so this endpoint
+      // never leaves a customer logged in, and the same generic 401 as
+      // every other staff-door failure (never reveal role or existence).
+      const { data: fresh } = await admin.auth.admin.getUserById(data.user.id);
+      if ((fresh?.user as any)?.app_metadata?.role !== "admin") {
+        await supabase.auth.signOut().catch(() => {});
+        throw createError({ statusCode: 401, statusMessage: "Invalid email or password." });
+      }
+    }
 
     // Link any guest orders that used the same email before this account
     // existed. Email ownership is proven by the successful password check above.

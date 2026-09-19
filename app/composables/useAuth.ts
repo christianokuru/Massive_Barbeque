@@ -39,7 +39,7 @@ export function useAuth() {
     return data;
   }
 
-  async function login(payload: { email: string; password: string }) {
+  async function login(payload: { email: string; password: string; portal?: string }) {
     await $fetch("/api/auth/login", { method: "POST", body: payload });
     await fetchSession();
   }

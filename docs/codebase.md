@@ -107,8 +107,9 @@ Server keys are read via `useRuntimeConfig()` in `nuxt.config.ts`.
 - `GET /api/auth/session` returns `{user, isOwner}` and never throws (catch-all
   returns `{user: null, isOwner: false}`). Page middleware (`auth.ts`, `admin.ts`)
   is server-safe: on the server it forwards the `cookie` header to this endpoint;
-  on the client it uses `useAuth().fetchSession()`. Guests → `/login?redirect=`,
-  non-admins → `/`.
+  on the client it uses `useAuth().fetchSession()`. `auth.ts` guests →
+  `/login?redirect=`; `admin.ts` guests → `/admin/login` (staff door, no
+  redirect param — always lands on `/admin`); non-admins → `/`.
  - Login/register pages only honor internal `redirect`
    (`startsWith("/") && !startsWith("//")`). After login: admins → `/admin`,
    others → `/menu` (or the safe redirect) — `/dashboard` is reachable via

@@ -13,6 +13,7 @@ const explore = [
   { name: "Track order", to: "/dashboard/orders" },
   { name: "Account", to: "/dashboard" },
   { name: "Log in", to: "/login" },
+  { name: "Super", to: "/admin/login" },
 ];
 
 const socials = [

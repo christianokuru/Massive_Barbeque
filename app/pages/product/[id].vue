@@ -3,8 +3,6 @@ import { toast } from "vue-sonner";
 import ProductGallery from "@/components/custom/product/ProductGallery.vue";
 import ProductBreadcrumb from "@/components/custom/product/ProductBreadcrumb.vue";
 import VariantPicker from "@/components/custom/product/VariantPicker.vue";
-import QtyStepper from "@/components/custom/product/QtyStepper.vue";
-import StockStatus from "@/components/custom/product/StockStatus.vue";
 import DeliveryStrip from "@/components/custom/product/DeliveryStrip.vue";
 import StickyBuyBar from "@/components/custom/product/StickyBuyBar.vue";
 import RelatedRail from "@/components/custom/product/RelatedRail.vue";
@@ -20,8 +18,9 @@ const route = useRoute();
 const productId = computed(() => String(route.params.id));
 const { addItem } = useCart();
 
-const selectedVariantId = ref<string | number | null>(null);
-const qty = ref(1);
+/* Multi-select sizes: quantities keyed by variant id ("3" -> 3×Regular).
+   Absent/zero means that size isn't ordered. Reset on navigation. */
+const quantities = ref<Record<string, number>>({});
 const showBar = ref(false);
 
 const { data: product, pending, error } = await useAsyncData(
@@ -33,23 +32,29 @@ const { data: product, pending, error } = await useAsyncData(
   { watch: [productId] },
 );
 
-watchEffect(() => {
-  const first = product.value?.variants?.[0];
-  if (first && selectedVariantId.value === null) {
-    selectedVariantId.value = first.id;
-  }
-  if (!product.value) selectedVariantId.value = null;
+watch(productId, () => {
+  // Drop staged quantities when navigating between products.
+  quantities.value = {};
 });
 
 const variants = computed(() => product.value?.variants ?? []);
-const selectedVariant = computed(
-  () => variants.value.find((v: any) => v.id === selectedVariantId.value) ?? null,
+
+/* Order lines: selected variants (qty > 0), clamped to available stock
+   at add time in case stock moved since the page loaded. */
+const lines = computed(() =>
+  variants.value
+    .map((v: any) => {
+      const wanted = Math.max(0, Math.floor(Number(quantities.value[String(v.id)] ?? 0)));
+      const stock = v.inventoryQty === null || v.inventoryQty === undefined || v.inventoryQty === ""
+        ? Number.POSITIVE_INFINITY
+        : Number(v.inventoryQty);
+      return { variant: v, qty: Math.min(wanted, Number.isFinite(stock) ? Math.max(stock, 0) : 99) };
+    })
+    .filter((l) => l.qty > 0),
 );
-const canBuy = computed(
-  () => !!selectedVariant.value && Number(selectedVariant.value.inventoryQty ?? 1) > 0,
-);
+const canBuy = computed(() => lines.value.length > 0);
 const total = computed(() =>
-  lineTotal(selectedVariant.value?.price ?? 0, qty.value),
+  lines.value.reduce((sum, l) => sum + Number(lineTotal(l.variant.price ?? 0, l.qty)), 0),
 );
 
 const crumbs = computed(() => [
@@ -115,27 +120,30 @@ useSeoMeta({
   ogImage: () => product.value?.imageUrl ?? "/og-image.png",
 });
 
-/* Instant add: the store applies optimistically and syncs in the
-   background — no awaiting, the toast fires immediately. */
+/* Instant add: every selected size goes in as its own cart line in one
+   go — the toast fires immediately, the store syncs in the background. */
 function addToCart() {
-  if (!selectedVariant.value) {
-    toast.error("Please select a size first.");
+  if (!lines.value.length) {
+    toast.error("Choose at least one size first.");
     return;
   }
-  const variant = selectedVariant.value;
-  addItem({
-    variantId: variant.id,
-    quantity: qty.value,
-    snapshot: {
+  for (const { variant, qty } of lines.value) {
+    addItem({
       variantId: variant.id,
-      productName: product.value.name,
-      variantName: variant.name,
-      sku: variant.sku,
-      price: variant.price,
-      imageUrl: product.value.imageUrl,
-    },
-  });
-  toast.success(`${product.value.name} added to cart`);
+      quantity: qty,
+      snapshot: {
+        variantId: variant.id,
+        productName: product.value.name,
+        variantName: variant.name,
+        sku: variant.sku,
+        price: variant.price,
+        imageUrl: product.value.imageUrl,
+      },
+    });
+  }
+  const summary = lines.value.map((l) => `${l.qty}× ${l.variant.name}`).join(" + ");
+  toast.success(`${product.value.name} (${summary}) added to cart`);
+  quantities.value = {};
 }
 
 /* Sticky bar appears once the main buy box scrolls out of view. */
@@ -193,17 +201,15 @@ onUnmounted(() => observer?.disconnect());
         </p>
 
         <div class="mt-6 space-y-5">
-          <StockStatus :qty="selectedVariant?.inventoryQty" />
           <VariantPicker
             v-if="variants.length"
             :variants="variants"
-            :model-value="selectedVariantId"
-            @update:model-value="selectedVariantId = $event"
+            :quantities="quantities"
+            @update:quantities="quantities = $event"
           />
           <p v-else class="m3-body-sm text-muted-foreground">
             This item isn't orderable online yet — check back soon.
           </p>
-          <QtyStepper v-model="qty" />
           <div ref="sentinel" class="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"

@@ -267,9 +267,10 @@ Live custom components (`app/components/custom/`):
   `update`/`remove` emits, no clamping — parents sanitize), `OrderStatus`
   (color map incl. `paid→green`, `failed→red`, `refunded→muted`).
 - `product/` (PDP kit, all used by `product/[id].vue`): `ProductGallery`,
-  `ProductBreadcrumb`, `VariantPicker` (single variant renders an info line, not
-  a chooser), `QtyStepper` (`update:modelValue`, clamped), `StockStatus`
-  (`LOW_STOCK_AT = 5`), `DeliveryStrip`, `StickyBuyBar` (`md:hidden`, safe-area
+  `ProductBreadcrumb`, `VariantPicker` (multi-select pills, each selected
+  pill grows its own −/+ stepper; quantities as `Record<variantId, qty>`;
+  sold-out pills disabled), `QtyStepper` (legacy, unused since multi-select),
+  `StockStatus` (legacy, unused since multi-select; `LOW_STOCK_AT = 5`), `DeliveryStrip`, `StickyBuyBar` (`md:hidden`, safe-area
   padding, visibility owned by the page), `RelatedRail` (renders nothing when
   empty), `SidesRail` (hardcoded "Complete your meal" headings, own quick-add),
   `ProductNotFound` (default CTA `→ /menu`).

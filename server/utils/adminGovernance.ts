@@ -92,13 +92,14 @@ export async function stampAdminRole(userId: string): Promise<boolean> {
   return !updateError;
 }
 
-/** Strip the admin role. Active sessions keep old JWT claims until re-login. */
+/** Strip the admin role. Active sessions keep old JWT claims until re-login.
+ * NOTE: GoTrue merge-patches app_metadata on update, so omitting the key
+ * is a silent no-op — the key must be nulled to actually remove the role. */
 export async function stripAdminRole(userId: string): Promise<boolean> {
   const admin = getServiceSupabase();
   const { data, error } = await admin.auth.admin.getUserById(userId);
   if (error || !data?.user) return false;
-  const appMetadata = { ...(data.user.app_metadata || {}) };
-  delete (appMetadata as any).role;
+  const appMetadata = { ...(data.user.app_metadata || {}), role: null };
   const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
     app_metadata: appMetadata,
   });

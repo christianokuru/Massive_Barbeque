@@ -207,10 +207,12 @@ export default defineNuxtConfig({
     enabled: true,
   },
 
-  // Prerender the sitemap product source at build time.
+  // Prerender the sitemap product source AND the sitemap itself at build
+  // time (`zeroRuntime` registers no runtime handler, so /sitemap.xml must
+  // exist as a static file or it 500s in production).
   nitro: {
     prerender: {
-      routes: ["/api/__sitemap__/urls"],
+      routes: ["/api/__sitemap__/urls", "/sitemap.xml"],
     },
   },
 

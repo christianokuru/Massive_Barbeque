@@ -25,6 +25,15 @@ useHead({
       rel: "canonical",
       href: () => `https://massivebarbeque.com${route.path}`,
     },
+    {
+      rel: "icon",
+      type: "image/png",
+      href: "/images/Food/Logos/submark.png",
+    },
+    {
+      rel: "apple-touch-icon",
+      href: "/images/Food/Logos/submark.png",
+    },
   ],
 });
 
@@ -40,7 +49,7 @@ useSchemaOrg([
     url: "https://massivebarbeque.com",
     logo: {
       "@type": "ImageObject",
-      url: "https://massivebarbeque.com/logo.svg",
+      url: "https://massivebarbeque.com/images/Food/Logos/Primary.png",
     },
     email: "info@massivebarbeque.com",
     description:
@@ -80,14 +89,16 @@ onMounted(() => {
 --------------------------------- */
 
 onMounted(() => {
-  if (!config.public.gaId) return;
+  // Strict GA id shape — never inject an attacker-influenced string as code.
+  const gaId = String(config.public.gaId || "");
+  if (!/^G-[A-Z0-9]{4,}$/.test(gaId)) return;
 
   // Prevent duplicate injection
   if (window.gtag) return;
 
   // Load GA library
   const gtagScript = document.createElement("script");
-  gtagScript.src = `https://www.googletagmanager.com/gtag/js?id=${config.public.gaId}`;
+  gtagScript.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
   gtagScript.async = true;
   document.head.appendChild(gtagScript);
 
@@ -98,20 +109,21 @@ onMounted(() => {
     function gtag(){dataLayer.push(arguments);}
     window.gtag = gtag;
     gtag('js', new Date());
-    gtag('config', '${config.public.gaId}', {
+    gtag('config', '${gaId}', {
       send_page_view: false
     });
   `;
   document.head.appendChild(inlineScript);
 });
 
-// Track SPA route changes
+// Track SPA route changes — path only, never fullPath: query strings
+// carry order UUIDs (?order=) and other PII that must not reach Google.
 watch(
-  () => route.fullPath,
+  () => route.path,
   () => {
     if (!window.gtag) return;
     window.gtag("event", "page_view", {
-      page_path: route.fullPath,
+      page_path: route.path,
     });
   },
 );

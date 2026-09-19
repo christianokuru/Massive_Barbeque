@@ -1,13 +1,18 @@
 import { z } from "zod";
 import { requireAdmin } from "~~/server/utils/supabase";
+import { imageUrlSchema } from "~~/server/utils/productImages";
 import { toProduct } from "~~/server/utils/mappers";
 
 const productSchema = z.object({
-  name: z.string().min(1).optional(),
-  slug: z.string().min(1).optional(),
-  description: z.string().nullable().optional(),
-  categoryId: z.number().nullable().optional(),
-  imageUrl: z.string().nullable().optional(),
+  name: z.string().min(1).max(200).optional(),
+  slug: z.string().min(1).max(200).optional(),
+  description: z.string().max(5000).nullable().optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
+  // Cover photo can stay untouched (absent), but if the key is sent it
+  // must be a real image — null/empty is rejected so a food can never
+  // be left with zero pictures. No .nullable() on purpose: clearing the
+  // cover fails validation instead of silently wiping it.
+  imageUrl: imageUrlSchema.optional(),
   isActive: z.boolean().optional(),
   featured: z.boolean().optional(),
 });
@@ -41,7 +46,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: product, error } = await supabase
     .from("products")
-    .select("*, categories(*), product_variants(*)")
+    .select("*, categories(*), product_variants(*), product_images(*)")
     .eq("id", id)
     .single();
   if (error) throw error;

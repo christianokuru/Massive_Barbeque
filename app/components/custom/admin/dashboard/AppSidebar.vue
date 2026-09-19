@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { Flame } from "lucide-vue-next";
-
 import NavMain from "./NavMain.vue";
 import NavUser from "./NavUser.vue";
 import {
@@ -24,7 +22,7 @@ import {
             class="data-[slot=sidebar-menu-button]:!p-1.5"
           >
             <NuxtLink to="/admin">
-              <Flame class="!size-5 text-orange-600" />
+              <img src="/images/Food/Logos/submark.png" alt="Massive Barbeque" class="size-8 shrink-0 object-contain" />
               <span class="text-base font-semibold">Massive Barbeque</span>
             </NuxtLink>
           </SidebarMenuButton>

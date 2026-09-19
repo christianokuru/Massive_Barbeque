@@ -11,17 +11,17 @@ describe("parseEmailList", () => {
 
 describe("isOwnerEmail", () => {
   it("matches owners case-insensitively", () => {
-    expect(isOwnerEmail("Owner@X.com", ["owner@x.com"], [])).toBe(true);
-    expect(isOwnerEmail("other@x.com", ["owner@x.com"], [])).toBe(false);
+    expect(isOwnerEmail("Owner@X.com", ["owner@x.com"])).toBe(true);
+    expect(isOwnerEmail("other@x.com", ["owner@x.com"])).toBe(false);
   });
 
-  it("falls back to the admin list only while owners is empty", () => {
-    expect(isOwnerEmail("a@x.com", [], ["a@x.com"])).toBe(true);
-    expect(isOwnerEmail("a@x.com", ["o@x.com"], ["a@x.com"])).toBe(false);
+  it("fails closed: no fallback to the admin list when owners is empty", () => {
+    expect(isOwnerEmail("a@x.com", [])).toBe(false);
+    expect(isOwnerEmail("a@x.com", ["o@x.com"])).toBe(false);
   });
 
   it("rejects blanks", () => {
-    expect(isOwnerEmail("", ["o@x.com"], [])).toBe(false);
-    expect(isOwnerEmail(null, ["o@x.com"], [])).toBe(false);
+    expect(isOwnerEmail("", ["o@x.com"])).toBe(false);
+    expect(isOwnerEmail(null, ["o@x.com"])).toBe(false);
   });
 });

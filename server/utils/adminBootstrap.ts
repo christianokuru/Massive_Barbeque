@@ -19,7 +19,7 @@ export async function ensureAdminRole(userId: string, email: string): Promise<bo
   const owners = ownerEmails(config);
   const allowList = adminAllowEmails(config);
 
-  const listed = isOwnerEmail(normalized, owners, allowList) || allowList.includes(normalized);
+  const listed = isOwnerEmail(normalized, owners) || allowList.includes(normalized);
   if (!listed) {
     // Invite path: pre-approved email signing up for the first time.
     const admin = getServiceSupabase();

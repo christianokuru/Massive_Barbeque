@@ -13,10 +13,17 @@ export default defineEventHandler(async (event) => {
     }
 
     const supabase = getSupabase(event);
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      throw createError({ statusCode: 404, statusMessage: "Product not found" });
+    }
+    // Public path serves active products only — hidden drafts stay hidden.
+    // Extras included for the details-page gallery (ordered in toProduct).
     const { data, error } = await supabase
       .from("products")
-      .select("*, categories(*), product_variants(*)")
-      .eq("id", Number(id))
+      .select("*, categories(*), product_variants(*), product_images(*)")
+      .eq("id", numericId)
+      .eq("is_active", true)
       .single();
 
     if (error || !data) {

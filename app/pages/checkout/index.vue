@@ -84,6 +84,26 @@ function nextFromFulfillment() {
 
 const totalNaira = (n: number) => `₦${n.toLocaleString()}`;
 
+// Gateway hosts we will redirect to — anything else is rejected
+// (a compromised/malicious init response can't bounce the buyer away).
+const GATEWAY_HOSTS = new Set([
+  "checkout.paystack.com",
+  "paystack.com",
+  "checkout.flutterwave.com",
+  "flutterwave.com",
+]);
+
+function assertGatewayUrl(url: string): string {
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    throw new Error("bad-gateway-url");
+  }
+  if (!GATEWAY_HOSTS.has(host)) throw new Error("bad-gateway-url");
+  return url;
+}
+
 async function placeOrder() {
   error.value = "";
   if (!items.value.length) {
@@ -92,7 +112,7 @@ async function placeOrder() {
   }
   placing.value = true;
   try {
-    const order = await $fetch<{ order: any }>("/api/orders", {
+    const order = await $fetch<{ order: any; guestToken?: string }>("/api/orders", {
       method: "POST",
       body: {
         // Ids + quantities only — the server prices from the database.
@@ -121,14 +141,28 @@ async function placeOrder() {
     // the flow UI (and the error below) must stay visible.
 
     const isPaystack = form.value.paymentMethod === "paystack";
+    // Guest orders need this token for every later step (order reads,
+    // pay init/verify). Logged-in buyers don't get one — the session
+    // is their proof. sessionStorage survives the gateway round-trip
+    // in the same tab.
+    if (order.guestToken) {
+      try {
+        sessionStorage.setItem(`mb:guest:${order.order.id}`, order.guestToken);
+      } catch {
+        // Private-mode storage failure: the confirm page will show the
+        // order as not found for guests — acceptable, no crash.
+      }
+    }
     const payment = await $fetch<{ authorization_url?: string; link?: string }>(
       isPaystack ? "/api/payments/paystack/initialize" : "/api/payments/flutterwave/initialize",
       {
         method: "POST",
+        // No `amount`: the server prices from the order (client money is
+        // never trusted — sending it only invites future misuse).
         body: {
           email: form.value.customerEmail,
-          amount: total.value,
           orderId: order.order.id,
+          guestToken: order.guestToken,
           customerName: form.value.customerName,
           customerPhone: form.value.customerPhone,
         },
@@ -144,9 +178,13 @@ async function placeOrder() {
     // Order is server-confirmed and the gateway URL is in hand —
     // the local cart has served its purpose.
     clear();
-    window.location.href = url;
+    window.location.href = assertGatewayUrl(url);
   } catch (e: any) {
-    error.value = e?.data?.statusMessage || e?.data?.message || e?.statusMessage || "Could not place order. Try again.";
+    if (e?.message === "bad-gateway-url") {
+      error.value = "Payment could not be started. Your order is saved — try again.";
+    } else {
+      error.value = e?.data?.statusMessage || e?.data?.message || e?.statusMessage || "Could not place order. Try again.";
+    }
   } finally {
     placing.value = false;
   }

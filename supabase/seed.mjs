@@ -1,6 +1,10 @@
-// Seed the Supabase catalog with the opening BBQ menu.
+// Seed the Supabase catalog from the official Massive Barbeque flyer
+// (public/images/Food/menu.jpeg — the source of truth).
 // Usage: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed.mjs
 // Idempotent: upserts on category slug / product slug / variant sku.
+// Anything NOT on the flyer is REMOVED (products by slug, variants by sku)
+// so the shop never sells retired items. Order history is safe:
+// order_items keep their name/price snapshot, variant links SET NULL.
 import { createClient } from "@supabase/supabase-js";
 import fs from "node:fs";
 
@@ -21,129 +25,110 @@ const supabase = createClient(
 );
 
 const CATEGORIES = [
-  { name: "Barbeque Fish", slug: "barbeque-fish", description: "Fire-grilled whole fish, marinated in bold Nigerian spices." },
-  { name: "Grilled Chicken", slug: "grilled-chicken", description: "Juicy flame-grilled chicken, half and full portions." },
-  { name: "Turkey", slug: "turkey", description: "Tender grilled turkey, smoked over open flames." },
+  { name: "Chicken", slug: "grilled-chicken", description: "Flame-grilled chicken — regulars, couple and family packs." },
+  { name: "Catfish", slug: "barbeque-fish", description: "Our signature whole catfish, grilled over open fire." },
   { name: "Croaker", slug: "croaker", description: "Crispy-skinned croaker fish grilled to perfection." },
-  { name: "Sides & Extras", slug: "sides", description: "Fries, slaw, plantain and more to complete the feast." },
+  { name: "Turkey", slug: "turkey", description: "Tender grilled turkey, smoked over open flames." },
+  { name: "Sides", slug: "sides", description: "Potatoes, yam fries and plantain to complete the feast." },
 ];
 
 const PRODUCTS = [
   {
-    name: "Barbeque Catfish",
-    slug: "barbeque-catfish",
-    description: "Our signature whole catfish, grilled over open fire and basted in peppered marinade.",
+    name: "Chicken",
+    slug: "chicken",
+    description: "Juicy flame-grilled chicken. Pick a size — regular, couple pack or family pack.",
+    category: "grilled-chicken",
+    imageUrl: "/images/Food/chicken.jpeg",
+    featured: true,
+    variants: [
+      { name: "Regular", sku: "MB-CHK-REG", price: "7000.00", inventoryQty: 50 },
+      { name: "Couple Pack", sku: "MB-CHK-CPL", price: "13000.00", inventoryQty: 30 },
+      { name: "Family Pack", sku: "MB-CHK-FAM", price: "25000.00", inventoryQty: 20 },
+    ],
+  },
+  {
+    name: "Catfish",
+    slug: "catfish",
+    description: "Our signature whole catfish, basted in peppered marinade. Pick a size.",
     category: "barbeque-fish",
+    imageUrl: "/images/Food/catfish.jpeg",
     featured: true,
     variants: [
       { name: "Regular", sku: "MB-CAT-REG", price: "8500.00", inventoryQty: 50 },
-      { name: "Large", sku: "MB-CAT-LRG", price: "12000.00", inventoryQty: 30 },
+      { name: "Standard", sku: "MB-CAT-STD", price: "11000.00", inventoryQty: 30 },
+      { name: "Biggie", sku: "MB-CAT-BIG", price: "14000.00", inventoryQty: 20 },
     ],
   },
   {
-    name: "Full Grilled Chicken",
-    slug: "full-grilled-chicken",
-    description: "Whole chicken marinated overnight and flame-grilled. Serves 3–4.",
-    category: "grilled-chicken",
-    featured: true,
-    variants: [
-      { name: "Half", sku: "MB-CHK-HLF", price: "5000.00", inventoryQty: 40 },
-      { name: "Full", sku: "MB-CHK-FUL", price: "9500.00", inventoryQty: 40 },
-    ],
-  },
-  {
-    name: "Barbeque Turkey",
-    slug: "barbeque-turkey",
-    description: "Smoky grilled turkey portions with our house dry rub.",
-    category: "turkey",
-    featured: false,
-    variants: [
-      { name: "Regular", sku: "MB-TRK-REG", price: "7500.00", inventoryQty: 35 },
-      { name: "Large", sku: "MB-TRK-LRG", price: "10500.00", inventoryQty: 20 },
-    ],
-  },
-  {
-    name: "Grilled Croaker",
-    slug: "grilled-croaker",
-    description: "Whole croaker fish, crispy skin, tender flesh, finished with grilled onions and pepper.",
+    name: "Croaker",
+    slug: "croaker",
+    description: "Whole croaker fish, crispy skin and tender flesh. Pick a size.",
     category: "croaker",
+    imageUrl: "/images/Food/croaker.jpeg",
     featured: true,
     variants: [
-      { name: "Regular", sku: "MB-CRK-REG", price: "10000.00", inventoryQty: 25 },
-      { name: "Large", sku: "MB-CRK-LRG", price: "14000.00", inventoryQty: 15 },
+      { name: "Regular", sku: "MB-CRK-REG", price: "9000.00", inventoryQty: 40 },
+      { name: "Standard", sku: "MB-CRK-STD", price: "12000.00", inventoryQty: 25 },
+      { name: "Biggie", sku: "MB-CRK-BIG", price: "15000.00", inventoryQty: 15 },
     ],
   },
   {
-    name: "Turkey Wings Platter",
-    slug: "turkey-wings-platter",
-    description: "A heap of char-grilled turkey wings — made for sharing (or not).",
+    name: "Turkey",
+    slug: "turkey",
+    description: "Tender grilled turkey with our house dry rub. Pick a size.",
     category: "turkey",
+    imageUrl: "/images/Food/turkey.jpg",
     featured: false,
-    variants: [{ name: "Platter", sku: "MB-TWP-PLT", price: "6000.00", inventoryQty: 30 }],
+    variants: [
+      { name: "Regular", sku: "MB-TRK-REG", price: "10000.00", inventoryQty: 40 },
+      { name: "Couple Pack", sku: "MB-TRK-CPL", price: "18000.00", inventoryQty: 25 },
+      { name: "Family Pack", sku: "MB-TRK-FAM", price: "35000.00", inventoryQty: 15 },
+    ],
   },
   {
-    name: "French Fries",
-    slug: "french-fries",
-    description: "Golden crispy fries, salted and served hot.",
+    name: "Potatoes Extra",
+    slug: "potatoes-extra",
+    description: "Extra serving of golden potatoes — made for sharing.",
     category: "sides",
+    imageUrl: "/images/Food/fried-potatoes.jpg",
     featured: false,
-    variants: [{ name: "Regular", sku: "MB-FRF-REG", price: "2500.00", inventoryQty: 100 }],
+    variants: [{ name: "Regular", sku: "MB-SDE-POT", price: "2000.00", inventoryQty: 100 }],
   },
   {
-    name: "Coleslaw",
-    slug: "coleslaw",
-    description: "Fresh crunchy slaw — the cool contrast to smoky grill.",
+    name: "Yam Fries",
+    slug: "yam-fries",
+    description: "Crispy yam fries, salted and served hot.",
     category: "sides",
+    imageUrl: "/images/Food/fried-yam.jpg",
     featured: false,
-    variants: [{ name: "Regular", sku: "MB-CLS-REG", price: "1500.00", inventoryQty: 100 }],
+    variants: [{ name: "Regular", sku: "MB-SDE-YAM", price: "3000.00", inventoryQty: 100 }],
   },
   {
-    name: "Grilled Plantain",
-    slug: "grilled-plantain",
-    description: "Sweet ripe plantain kissed by the grill.",
+    name: "Plantain Fries",
+    slug: "plantain-fries",
+    description: "Golden plantain fries — sweet, crisp edges, soft centre.",
     category: "sides",
+    imageUrl: "/images/Food/fried-plantain.jpg",
     featured: false,
-    variants: [{ name: "Portion", sku: "MB-GPL-POR", price: "2000.00", inventoryQty: 80 }],
+    variants: [{ name: "Regular", sku: "MB-SDE-PLT", price: "2500.00", inventoryQty: 100 }],
   },
   {
-    name: "Fried Plantain",
-    slug: "fried-plantain",
-    description: "Golden fried plantain — sweet, crisp edges, soft centre.",
+    name: "Plantain Bole",
+    slug: "plantain-bole",
+    description: "Fire-roasted plantain bole — smoky and sweet.",
     category: "sides",
+    imageUrl: "/images/Food/plantain-boli.jpg",
     featured: false,
-    variants: [{ name: "Portion", sku: "MB-FPL-POR", price: "2000.00", inventoryQty: 80 }],
+    variants: [{ name: "Regular", sku: "MB-SDE-BOLE", price: "2000.00", inventoryQty: 100 }],
   },
   {
-    name: "Roasted Yam",
-    slug: "roasted-yam",
-    description: "Fire-roasted yam slices — the classic BBQ companion.",
-    category: "sides",
+    name: "Catfish Pepper Soup",
+    slug: "catfish-pepper-soup",
+    description: "Catfish pepper soup (Pps) — hot, spicy comfort in a bowl.",
+    category: "barbeque-fish",
+    imageUrl: "/images/Food/catfish-peppersoup.jpg",
     featured: false,
-    variants: [{ name: "Portion", sku: "MB-RYM-POR", price: "2500.00", inventoryQty: 80 }],
-  },
-  {
-    name: "Garden Salad",
-    slug: "garden-salad",
-    description: "Crisp fresh salad — a light balance to the smoke.",
-    category: "sides",
-    featured: false,
-    variants: [{ name: "Bowl", sku: "MB-GSL-BWL", price: "2500.00", inventoryQty: 60 }],
-  },
-  {
-    name: "Jollof Rice",
-    slug: "jollof-rice",
-    description: "Smoky party-style jollof, cooked down for maximum flavour.",
-    category: "sides",
-    featured: false,
-    variants: [{ name: "Regular", sku: "MB-JLF-REG", price: "3500.00", inventoryQty: 60 }],
-  },
-  {
-    name: "Pasta",
-    slug: "pasta",
-    description: "Rich, satisfying pasta — comfort in a plate.",
-    category: "sides",
-    featured: false,
-    variants: [{ name: "Plate", sku: "MB-PST-PLT", price: "4000.00", inventoryQty: 60 }],
+    variants: [{ name: "Regular", sku: "MB-CAT-PPS", price: "9000.00", inventoryQty: 40 }],
   },
 ];
 
@@ -160,6 +145,9 @@ for (const c of CATEGORIES) {
 const { data: cats } = await supabase.from("categories").select("id, slug");
 const catId = Object.fromEntries((cats || []).map((c) => [c.slug, c.id]));
 
+const keepSlugs = new Set(PRODUCTS.map((p) => p.slug));
+const keepSkus = new Set(PRODUCTS.flatMap((p) => p.variants.map((v) => v.sku)));
+
 for (const p of PRODUCTS) {
   const { data: product, error } = await supabase
     .from("products")
@@ -169,6 +157,7 @@ for (const p of PRODUCTS) {
         slug: p.slug,
         description: p.description,
         category_id: catId[p.category],
+        image_url: p.imageUrl,
         is_active: true,
         featured: p.featured,
       },
@@ -196,4 +185,32 @@ for (const p of PRODUCTS) {
   }
 }
 
-console.log(`Seeded: ${counts.categories} categories, ${counts.products} products, ${counts.variants} variants.`);
+// Retire anything not on the flyer. Product deletes cascade to their
+// variants; the stray-variant sweep catches the rest. Past orders keep
+// their item snapshots (variant_id SET NULL).
+const { data: existingProducts } = await supabase.from("products").select("id, slug");
+const staleProductIds = (existingProducts || [])
+  .filter((p) => !keepSlugs.has(p.slug))
+  .map((p) => p.id);
+let retiredProducts = 0;
+if (staleProductIds.length) {
+  const { error } = await supabase.from("products").delete().in("id", staleProductIds);
+  if (error) throw new Error(`retire products: ${error.message}`);
+  retiredProducts = staleProductIds.length;
+}
+
+const { data: existingVariants } = await supabase.from("product_variants").select("id, sku");
+const staleVariantIds = (existingVariants || [])
+  .filter((v) => !keepSkus.has(v.sku))
+  .map((v) => v.id);
+let retiredVariants = 0;
+if (staleVariantIds.length) {
+  const { error } = await supabase.from("product_variants").delete().in("id", staleVariantIds);
+  if (error) throw new Error(`retire variants: ${error.message}`);
+  retiredVariants = staleVariantIds.length;
+}
+
+console.log(
+  `Seeded: ${counts.categories} categories, ${counts.products} products, ${counts.variants} variants. ` +
+    `Retired: ${retiredProducts} products, ${retiredVariants} variants.`
+);

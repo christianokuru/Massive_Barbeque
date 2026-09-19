@@ -28,7 +28,7 @@ defineProps<Props>();
 </script>
 
 <template>
-  <section class="mx-auto max-w-7xl px-6 pb-20">
+  <section class="mx-auto max-w-7xl px-6 pt-20 pb-20">
     <div class="overflow-hidden rounded-3xl bg-primary-container text-on-primary-container">
       <div class="grid gap-10 p-8 sm:p-12 lg:grid-cols-2 lg:items-center">
         <div>

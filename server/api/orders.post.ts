@@ -3,6 +3,8 @@ import { getServiceSupabase, getAuthUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 import { cartSubtotal, lineTotal, orderTotals } from "~~/shared/utils/pricing";
 import { isRateLimited } from "~~/server/utils/rateLimit";
+import { getClientIp } from "~~/server/utils/clientIp";
+import { getGuestTokenSecret, issueGuestToken } from "~~/server/utils/guestToken";
 import crypto from "crypto";
 
 // The cart lives in the browser; the client submits ids + quantities
@@ -17,33 +19,46 @@ const orderItemSchema = z.object({
   quantity: z.number().int().min(1).max(99),
 });
 
-const orderSchema = z.object({
-  items: z.array(orderItemSchema).min(1).max(50),
-  fulfillmentType: z.enum(["delivery", "pickup"]),
-  customerEmail: z.string().email(),
-  customerName: z.string().min(1),
-  customerPhone: z.string().min(1),
-  deliveryAddress: z
-    .object({
-      firstName: z.string(),
-      lastName: z.string(),
-      phone: z.string(),
-      addressLine1: z.string(),
-      addressLine2: z.string().optional(),
-      city: z.string(),
-      state: z.string(),
-      postalCode: z.string().optional(),
-    })
-    .optional(),
-  pickupTime: z.string().optional(),
-  notes: z.string().optional(),
-  paymentMethod: z.enum(["paystack", "flutterwave"]),
-});
+const orderSchema = z
+  .object({
+    items: z.array(orderItemSchema).min(1).max(50),
+    fulfillmentType: z.enum(["delivery", "pickup"]),
+    customerEmail: z.string().email().max(254).toLowerCase().trim(),
+    customerName: z.string().min(1).max(100),
+    customerPhone: z.string().min(1).max(30),
+    deliveryAddress: z
+      .object({
+        firstName: z.string().min(1).max(100),
+        lastName: z.string().min(1).max(100),
+        phone: z.string().min(1).max(30),
+        addressLine1: z.string().min(1).max(300),
+        addressLine2: z.string().max(300).optional(),
+        city: z.string().min(1).max(100),
+        state: z.string().min(1).max(100),
+        postalCode: z.string().max(20).optional(),
+      })
+      .optional(),
+    pickupTime: z
+      .string()
+      .max(100)
+      .optional()
+      .refine((v) => v === undefined || Number.isFinite(Date.parse(v)), {
+        message: "Invalid pickup time",
+      }),
+    notes: z.string().max(2000).optional(),
+    paymentMethod: z.enum(["paystack", "flutterwave"]),
+  })
+  // Delivery is meaningless without an address — reject rather than
+  // storing a deliver-to-nowhere order.
+  .refine((data) => data.fulfillmentType === "pickup" || data.deliveryAddress, {
+    message: "Delivery address is required for delivery orders",
+    path: ["deliveryAddress"],
+  });
 
 export default defineEventHandler(async (event) => {
   try {
     // Cheap to create, easy to abuse for DB bloat: 20 per IP per 15 min.
-    const ip = getRequestIP(event) || "unknown";
+    const ip = getClientIp(event);
     const { limited, retryAfterSecs } = isRateLimited(`orders:${ip}`, {
       limit: 20,
       windowSecs: 900,
@@ -61,6 +76,10 @@ export default defineEventHandler(async (event) => {
     const supabase = getServiceSupabase();
 
     const body = await readValidatedBody(event, orderSchema.parse);
+
+    // A logged-in caller can't plant orders into someone else's history:
+    // identity comes from the verified session, never the client.
+    const customerEmail = (user?.email || body.customerEmail).toLowerCase();
 
     // Merge duplicate lines so each variant is priced once.
     const quantities = new Map<number, number>();
@@ -85,6 +104,17 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    // Stock check: never sell more than on hand (prevents oversell runs).
+    for (const v of live as any[]) {
+      const wanted = Math.min(99, quantities.get(v.id) ?? 1);
+      if (!Number.isFinite(Number(v.inventory_qty)) || Number(v.inventory_qty) < wanted) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: "Some items in your cart don't have enough stock.",
+        });
+      }
+    }
+
     const lines = live.map((v: any) => {
       const quantity = Math.min(99, quantities.get(v.id) ?? 1);
       return { variant: v, quantity, total: lineTotal(v.price, quantity) };
@@ -94,7 +124,9 @@ export default defineEventHandler(async (event) => {
     );
     const { deliveryFee, total } = orderTotals(subtotal, body.fulfillmentType);
 
-    const orderNumber = `MB${Date.now().toString().slice(-8)}`;
+    // Unpredictable, collision-resistant order numbers (Date.now-based
+    // numbers collide under concurrency and leak order rate).
+    const orderNumber = `MB${crypto.randomInt(10000000, 100000000)}`;
 
     const { data: newOrder, error: orderError } = await supabase
       .from("orders")
@@ -107,7 +139,7 @@ export default defineEventHandler(async (event) => {
         subtotal: subtotal.toFixed(2),
         delivery_fee: deliveryFee.toFixed(2),
         total: total.toFixed(2),
-        customer_email: body.customerEmail,
+        customer_email: customerEmail,
         customer_name: body.customerName,
         customer_phone: body.customerPhone,
         delivery_address: body.deliveryAddress
@@ -152,7 +184,14 @@ export default defineEventHandler(async (event) => {
       .single();
     if (fetchError) throw fetchError;
 
-    return { success: true, order: toOrder(order) };
+    // Guest orders get a signed token (HMAC, bound to order + email,
+    // 30-day expiry). The buyer must present it to read the order, init
+    // payment, or verify — UUID alone no longer authorizes anything.
+    const guestToken = userId
+      ? undefined
+      : issueGuestToken(newOrder.id, customerEmail, getGuestTokenSecret(event));
+
+    return { success: true, order: toOrder(order), guestToken };
   } catch (error: any) {
     console.error("Order creation error:", error?.message || error);
 

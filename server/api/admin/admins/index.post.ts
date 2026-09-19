@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getServiceSupabase } from "~~/server/utils/supabase";
 import { isRateLimited } from "~~/server/utils/rateLimit";
+import { getClientIp } from "~~/server/utils/clientIp";
 import {
   auditAdminAction,
   findUserIdByEmail,
@@ -16,7 +17,7 @@ const promoteSchema = z.object({ email: z.string().email() });
 export default defineEventHandler(async (event) => {
   try {
     const { user } = await requireOwner(event);
-    const ip = getRequestIP(event) || "unknown";
+    const ip = getClientIp(event);
     const { limited } = isRateLimited(`admin-promote:${ip}`, { limit: 20, windowSecs: 3600 });
     if (limited) {
       throw createError({ statusCode: 429, statusMessage: "Too many attempts. Try again later." });
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
     if (userId) {
       const ok = await stampAdminRole(userId);
       if (!ok) throw createError({ statusCode: 500, statusMessage: "Could not promote user." });
-      await auditAdminAction(user.email, "promote", email);
+      await auditAdminAction(user.email, "promote", email, ip);
       return { success: true, mode: "promoted" };
     }
 
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
       .from("admin_invites")
       .upsert({ email, invited_by_email: user.email }, { onConflict: "email" });
     if (error) throw error;
-    await auditAdminAction(user.email, "invite", email);
+    await auditAdminAction(user.email, "invite", email, ip);
     return { success: true, mode: "invited" };
   } catch (error: any) {
     console.error("Admin promote error:", error?.message || error);

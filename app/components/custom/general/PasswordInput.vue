@@ -5,6 +5,7 @@ interface Props {
   id?: string;
   required?: boolean;
   minlength?: number | string;
+  maxlength?: number | string;
   placeholder?: string;
   autocomplete?: string;
 }
@@ -25,6 +26,7 @@ const visible = ref(false);
       :id="id"
       :required="required"
       :minlength="minlength"
+      :maxlength="maxlength ?? 72"
       :placeholder="placeholder"
       :autocomplete="autocomplete"
       class="w-full rounded border border-border bg-background px-3 py-2 pr-10"

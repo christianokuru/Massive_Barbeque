@@ -23,10 +23,9 @@ async function submit() {
   try {
     await login(form.value);
     // Return to the guarded page if present, else role home.
-    // Only internal paths are honored (open-redirect protection).
-    const redirect = String(route.query.redirect || "");
-    const safe = redirect.startsWith("/") && !redirect.startsWith("//");
-    await navigateTo(safe ? redirect : isAdmin.value ? "/admin" : "/menu");
+    // Only provably internal paths are honored (open-redirect protection).
+    const dest = safeRedirectPath(route.query.redirect) ?? (isAdmin.value ? "/admin" : "/menu");
+    await navigateTo(dest);
     toast.success("Welcome back!");
   } catch (e: any) {
     error.value = e?.data?.statusMessage || e?.message || "Invalid email or password.";

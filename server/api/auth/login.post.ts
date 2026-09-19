@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getSupabase, getServiceSupabase } from "~~/server/utils/supabase";
 import { isRateLimited } from "~~/server/utils/rateLimit";
+import { getClientIp } from "~~/server/utils/clientIp";
 import { ensureAdminRole } from "~~/server/utils/adminBootstrap";
 import { claimGuestOrders } from "~~/server/utils/orderClaim";
 
@@ -11,9 +12,14 @@ const loginSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
-    // Brute-force protection: 10 attempts per IP per 15 minutes.
-    const ip = getRequestIP(event) || "unknown";
-    const { limited, retryAfterSecs } = isRateLimited(`login:${ip}`, {
+    // Brute-force protection: 10 attempts per IP+email per 15 minutes.
+    // Composite key: one IP can't spray many accounts, and one account
+    // can't be sprayed from many IPs without bound. Shapes (404 unknown
+    // vs 401 wrong password) are an intentional product decision.
+    const preBody = await readBody(event).catch(() => ({}));
+    const rateEmail = String((preBody as any)?.email || "").toLowerCase().slice(0, 254);
+    const ip = getClientIp(event);
+    const { limited, retryAfterSecs } = isRateLimited(`login:${ip}:${rateEmail}`, {
       limit: 10,
       windowSecs: 900,
     });
@@ -31,7 +37,7 @@ export default defineEventHandler(async (event) => {
     // and "wrong password", so look the email up explicitly to give a
     // specific "no account" message. NOTE: this makes account existence
     // enumerable by design (product decision) — bulk probing is throttled
-    // by the rate limit above (10 attempts/IP/15min).
+    // by the composite rate limit above (10 attempts/IP+email/15min).
     const admin = getServiceSupabase();
     let exists = false;
     let lookupOk = true;

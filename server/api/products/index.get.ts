@@ -4,11 +4,14 @@ import { toProduct } from "~~/server/utils/mappers";
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const categoryId = query.categoryId ? Number(query.categoryId) : undefined;
+    const rawCategory = query.categoryId !== undefined ? Number(query.categoryId) : NaN;
+    const categoryId = Number.isInteger(rawCategory) && rawCategory > 0 ? rawCategory : undefined;
     const featured = query.featured === "true";
-    const search = query.search as string | undefined;
-    const limit = query.limit ? Number(query.limit) : 50;
-    const offset = query.offset ? Number(query.offset) : 0;
+    // Escape LIKE wildcards so search can't act as a broad-match probe.
+    const search = (query.search as string | undefined)?.slice(0, 100).replace(/[\\%_]/g, (c) => `\\${c}`);
+    // Clamp pagination: unbounded limit = full-catalog dump + heavy count.
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 50));
+    const offset = Math.max(0, Number(query.offset) || 0);
 
     const supabase = getSupabase(event);
     // Left-join variants (a product with no active variants must still list),

@@ -37,6 +37,15 @@ import { Textarea } from "@/components/ui/textarea";
 
 const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 
+// Mirrors server/utils/productImages: https URLs or site-relative paths.
+function isImageLocation(v: string) {
+  if (!v || v.length > 2048 || /[\s\\]/.test(v)) return false;
+  if (v.startsWith("https://")) return true;
+  return v.startsWith("/") && !v.startsWith("//");
+}
+
+const MAX_EXTRAS = 8;
+
 const variantSchema = z.object({
   name: z.string().min(1, "Name required"),
   sku: z.string().min(1, "SKU required"),
@@ -47,9 +56,16 @@ const variantSchema = z.object({
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   slug: z.string().min(1, "Slug is required"),
-  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  imageUrl: z.string().min(1, "A cover photo is required").refine(isImageLocation, {
+    message: "Must be an https URL or a site path like /images/…",
+  }),
   variants: z.array(variantSchema),
 });
+
+interface ExtraImageDraft {
+  id?: number
+  imageUrl: string
+}
 
 interface VariantDraft extends AdminProductVariant {
   _key: number
@@ -74,6 +90,8 @@ const form = ref({
   description: "",
   categoryId: null as number | null,
   imageUrl: "",
+  extraImages: [] as ExtraImageDraft[],
+  removedImageIds: [] as number[],
   isActive: true,
   featured: false,
   variants: [] as VariantDraft[],
@@ -81,8 +99,10 @@ const form = ref({
 const errors = ref<Record<string, string>>({});
 const saving = ref(false);
 const uploading = ref(false);
+const uploadingExtras = ref(false);
 const slugEdited = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
+const extrasInput = ref<HTMLInputElement | null>(null);
 
 const isEditing = computed(() => editingProduct.value != null);
 const { $lenis } = useNuxtApp();
@@ -100,7 +120,7 @@ function snapshotForm() {
 const isDirty = computed(() => snapshotForm() !== snapshot.value);
 
 function requestClose() {
-  if (saving.value || uploading.value) return;
+  if (saving.value || uploading.value || uploadingExtras.value) return;
   if (isDirty.value) {
     confirmDiscard.value = true;
   } else {
@@ -145,6 +165,8 @@ function resetForm() {
     description: source?.description ?? "",
     categoryId: source?.categoryId ?? null,
     imageUrl: source?.imageUrl ?? "",
+    extraImages: (source?.images ?? []).map((img) => ({ id: img.id, imageUrl: img.imageUrl })),
+    removedImageIds: [],
     isActive: source?.isActive !== false,
     featured: !!source?.featured,
     variants: (source?.variants ?? []).map((v) => ({ ...v, _key: keySeq++ })),
@@ -170,13 +192,44 @@ async function handleFilePicked(event: Event) {
   uploading.value = true;
   try {
     form.value.imageUrl = await uploadImage(file);
-    toast.success("Image uploaded.");
+    toast.success("Cover photo uploaded.");
   } catch (e: any) {
     toast.error(e?.data?.statusMessage || e?.message || "Image upload failed.");
   } finally {
     uploading.value = false;
     if (fileInput.value) fileInput.value.value = "";
   }
+}
+
+const extrasFull = computed(() => form.value.extraImages.length >= MAX_EXTRAS);
+
+async function handleExtrasPicked(event: Event) {
+  const files = Array.from((event.target as HTMLInputElement).files ?? []);
+  if (!files.length) return;
+  const room = MAX_EXTRAS - form.value.extraImages.length;
+  if (room <= 0) {
+    toast.error(`At most ${MAX_EXTRAS} extra photos per product.`);
+    if (extrasInput.value) extrasInput.value.value = "";
+    return;
+  }
+  uploadingExtras.value = true;
+  try {
+    for (const file of files.slice(0, room)) {
+      const url = await uploadImage(file);
+      form.value.extraImages.push({ imageUrl: url });
+    }
+    toast.success("Extra photos added — save to keep them.");
+  } catch (e: any) {
+    toast.error(e?.data?.statusMessage || e?.message || "Image upload failed.");
+  } finally {
+    uploadingExtras.value = false;
+    if (extrasInput.value) extrasInput.value.value = "";
+  }
+}
+
+function removeExtraImage(index: number) {
+  const [removed] = form.value.extraImages.splice(index, 1);
+  if (removed?.id != null) form.value.removedImageIds.push(removed.id);
 }
 
 async function handleSubmit() {
@@ -208,6 +261,8 @@ async function handleSubmit() {
       description: form.value.description,
       categoryId: form.value.categoryId,
       imageUrl: parsed.data.imageUrl || undefined,
+      addedImageUrls: form.value.extraImages.filter((img) => img.id == null).map((img) => img.imageUrl),
+      removedImageIds: form.value.removedImageIds,
       isActive: form.value.isActive,
       featured: form.value.featured,
       variants: form.value.variants.map((v, i) => ({
@@ -253,6 +308,7 @@ async function handleSubmit() {
 
       <div data-lenis-prevent class="grid gap-5 overflow-y-auto px-6 py-5">
         <section class="overflow-hidden rounded-xl border">
+          <p class="border-b bg-card px-4 py-2 text-sm font-semibold">Cover photo <span class="text-destructive">*</span> <span class="font-normal text-muted-foreground">— shown everywhere</span></p>
           <div class="relative flex h-44 items-center justify-center overflow-hidden bg-muted">
             <img v-if="form.imageUrl" :src="form.imageUrl" alt="Product preview" class="h-full w-full object-cover" />
             <div v-else class="flex flex-col items-center gap-1 text-muted-foreground">
@@ -273,10 +329,53 @@ async function handleSubmit() {
             <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleFilePicked" />
           </div>
           <div class="grid gap-1.5 border-t bg-card px-4 py-3">
-            <Label for="product-image-url" class="text-xs text-muted-foreground">…or paste an image URL (JPG, PNG, WebP)</Label>
+            <Label for="product-image-url" class="text-xs text-muted-foreground">…or paste an image URL (https://… or /images/…)</Label>
             <Input id="product-image-url" v-model="form.imageUrl" placeholder="https://…" />
             <p v-if="errors.imageUrl" class="text-xs text-destructive">{{ errors.imageUrl }}</p>
           </div>
+        </section>
+
+        <section class="grid gap-3 rounded-xl border p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold">More photos <span class="font-normal text-muted-foreground">(optional)</span></p>
+              <p class="text-xs text-muted-foreground">Extra angles shown on the product page — {{ form.extraImages.length }}/{{ MAX_EXTRAS }}</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :disabled="uploadingExtras || extrasFull"
+              @click="extrasInput?.click()"
+            >
+              <Loader2 v-if="uploadingExtras" class="animate-spin" />
+              <Plus v-else />
+              {{ uploadingExtras ? "Uploading…" : "Add photos" }}
+            </Button>
+            <input ref="extrasInput" type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" @change="handleExtrasPicked" />
+          </div>
+          <div v-if="form.extraImages.length" class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div
+              v-for="(img, i) in form.extraImages"
+              :key="img.id ?? `new-${i}`"
+              class="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
+            >
+              <img :src="img.imageUrl" :alt="`Extra photo ${i + 1}`" class="h-full w-full object-cover" />
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                class="absolute right-1 top-1 size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                :aria-label="`Remove extra photo ${i + 1}`"
+                @click="removeExtraImage(i)"
+              >
+                <Trash2 class="size-4" />
+              </Button>
+            </div>
+          </div>
+          <p v-else class="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+            No extra photos yet — the cover above is enough, add more whenever you like.
+          </p>
         </section>
 
         <section class="grid gap-4 rounded-xl border p-4">
@@ -378,7 +477,7 @@ async function handleSubmit() {
 
       <DialogFooter class="border-t bg-background px-6 py-4">
         <Button type="button" variant="outline" :disabled="saving" @click="requestClose">Cancel</Button>
-        <Button type="button" :disabled="saving || uploading" @click="handleSubmit">
+        <Button type="button" :disabled="saving || uploading || uploadingExtras" @click="handleSubmit">
           <Loader2 v-if="saving" class="animate-spin" />
           {{ saving ? "Saving…" : isEditing ? "Save changes" : "Create product" }}
         </Button>

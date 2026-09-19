@@ -18,7 +18,9 @@ logs
 .fleet
 .idea
 
-# Local env files
-.env
-# .env.*
-# !.env.example
+# Local env files (any suffix — live keys must never be committed)
+/.env*
+!.env.example
+
+# Private security audit — never commit or push to GitHub
+SECURITY-AUDIT-PRIVATE.md

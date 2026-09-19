@@ -16,6 +16,10 @@ function isActive(to: string) {
 
 <template>
   <div class="mx-auto max-w-6xl px-4 pt-20 pb-16 sm:pt-24 md:px-6">
+    <NuxtLink to="/" class="mb-5 inline-flex items-center gap-2.5" aria-label="Massive Barbeque home">
+      <img src="/images/Food/Logos/submark.png" alt="" class="size-9 object-contain" />
+      <span class="text-sm font-semibold tracking-wide text-foreground">Massive Barbeque</span>
+    </NuxtLink>
     <nav aria-label="Account" class="mb-8 flex gap-1 overflow-x-auto rounded-full border border-border bg-card p-1.5 sm:inline-flex">
       <NuxtLink
         v-for="t in tabs"

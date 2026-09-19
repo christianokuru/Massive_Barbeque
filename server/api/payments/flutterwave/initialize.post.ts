@@ -2,42 +2,63 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { confirmUrl } from "~~/server/utils/siteUrl";
 import { isRateLimited } from "~~/server/utils/rateLimit";
+import { getClientIp } from "~~/server/utils/clientIp";
+import { assertOrderAccess } from "~~/server/utils/orderAccess";
 
 // The amount is NEVER taken from the client: it is loaded from the
 // server-priced order (see paystack sibling for the attack).
 const flutterwaveInitializeSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().max(254),
   orderId: z.string().uuid(),
-  customerName: z.string().optional(),
-  customerPhone: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  customerName: z.string().max(100).optional(),
+  customerPhone: z.string().max(30).optional(),
+  // Signed guest token (required for guest orders). Capped strings only.
+  guestToken: z.string().max(4096).optional(),
+  // zod v3 has no .max() on records — cap entries via refine.
+  metadata: z
+    .record(z.string().max(500))
+    .optional()
+    .refine(
+      (v) =>
+        !v ||
+        (Object.keys(v).length <= 10 &&
+          Object.keys(v).every((k) => k.length <= 100)),
+      { message: "Too much metadata" }
+    ),
 });
 
 export default defineEventHandler(async (event) => {
   try {
     const config = useRuntimeConfig();
-    const ip = getRequestIP(event) || "unknown";
-    const { limited } = isRateLimited(`pay-init:${ip}`, { limit: 30, windowSecs: 3600 });
+    const body = await readValidatedBody(event, flutterwaveInitializeSchema.parse);
+    const ip = getClientIp(event);
+    const { limited } = isRateLimited(`pay-init:${ip}:${body.orderId}`, { limit: 10, windowSecs: 3600 });
     if (limited) {
       throw createError({ statusCode: 429, statusMessage: "Too many payment attempts. Try again later." });
     }
-    const body = await readValidatedBody(event, flutterwaveInitializeSchema.parse);
 
     const { getServiceSupabase } = await import("~~/server/utils/supabase");
     const supabase = getServiceSupabase();
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, total, payment_method, payment_status")
-      .eq("id", body.orderId)
-      .single();
-    if (!order) {
-      throw createError({ statusCode: 404, statusMessage: "Order not found." });
-    }
+    // Ownership first: strangers can't init payment on (or probe) orders.
+    const { order } = await assertOrderAccess(event, body.orderId, body.guestToken);
     if (order.payment_status === "paid") {
       throw createError({ statusCode: 400, statusMessage: "Order is already paid." });
     }
     if (order.payment_method !== "flutterwave") {
       throw createError({ statusCode: 400, statusMessage: "Order is not a Flutterwave order." });
+    }
+    // Cap pending rows per order (each init mints a fresh tx_ref).
+    const { count: pendingCount } = await supabase
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .eq("order_id", body.orderId)
+      .eq("provider", "flutterwave")
+      .eq("status", "pending");
+    if ((pendingCount ?? 0) >= 5) {
+      throw createError({
+        statusCode: 429,
+        statusMessage: "Too many pending payments for this order. Complete or wait before retrying.",
+      });
     }
     const amount = Number(order.total);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -50,20 +71,23 @@ export default defineEventHandler(async (event) => {
     // recovered from verify metadata if params get mangled.
     const redirectUrl = confirmUrl(event, body.orderId);
 
+    const buyerEmail = (order as any).customer_email || body.email;
     const payload = {
       tx_ref: txRef,
       amount,
       currency: 'NGN',
-      email: body.email,
+      email: buyerEmail,
       customer: {
-        email: body.email,
+        email: buyerEmail,
         name: body.customerName || '',
         phone: body.customerPhone || '',
       },
       redirect_url: redirectUrl,
+      // orderId is forced AFTER the client spread so it can't be
+      // overridden to point at someone else's order.
       meta: {
-        orderId: body.orderId,
         ...body.metadata,
+        orderId: body.orderId,
       },
     };
 

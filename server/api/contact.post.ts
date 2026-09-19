@@ -1,12 +1,16 @@
 import { Resend } from "resend";
 import { z } from "zod";
 import { isRateLimited } from "~~/server/utils/rateLimit";
+import { getClientIp } from "~~/server/utils/clientIp";
 
 const contactSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  brand: z.string().min(1),
-  message: z.string().min(10),
+  name: z.string().min(2).max(100),
+  email: z.string().email().max(254),
+  brand: z.string().min(1).max(200),
+  message: z.string().min(10).max(2000),
+  // Honeypot: real forms never send it; bots fill it. Reject silently
+  // as success so spammers can't probe the filter.
+  company: z.string().max(0).optional(),
 });
 
 // Escape user input interpolated into the HTML email — the inbox is a
@@ -23,7 +27,7 @@ function escapeHtml(s: string): string {
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   // Abuse protection: unauthenticated email relay, 5 per IP per hour.
-  const ip = getRequestIP(event) || "unknown";
+  const ip = getClientIp(event);
   const { limited, retryAfterSecs } = isRateLimited(`contact:${ip}`, {
     limit: 5,
     windowSecs: 3600,
@@ -39,6 +43,11 @@ export default defineEventHandler(async (event) => {
 
   try {
     const body = await readBody(event);
+
+    // Honeypot trip: pretend success, send nothing (silent = unprobable).
+    if (body && typeof (body as any).company === "string" && (body as any).company.length > 0) {
+      return { success: true };
+    }
 
     // Validate request body
     const validatedData = contactSchema.parse(body);

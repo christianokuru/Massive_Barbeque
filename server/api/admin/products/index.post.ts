@@ -1,26 +1,28 @@
 import { z } from "zod";
 import { requireAdmin } from "~~/server/utils/supabase";
+import { imageUrlSchema } from "~~/server/utils/productImages";
 import { toProduct } from "~~/server/utils/mappers";
 
 const productSchema = z.object({
-  name: z.string().min(1, "Product name is required"),
-  slug: z.string().min(1, "Slug is required"),
-  description: z.string().optional(),
-  categoryId: z.number().optional(),
-  imageUrl: z.string().url().optional(),
+  name: z.string().min(1, "Product name is required").max(200),
+  slug: z.string().min(1, "Slug is required").max(200),
+  description: z.string().max(5000).optional(),
+  categoryId: z.number().int().positive().optional(),
+  // Cover photo is mandatory — every food needs at least one picture.
+  imageUrl: imageUrlSchema,
   isActive: z.boolean().default(true),
   featured: z.boolean().default(false),
   variants: z
     .array(
       z.object({
-        name: z.string().min(1, "Variant name is required"),
-        sku: z.string().min(1, "SKU is required"),
+        name: z.string().min(1, "Variant name is required").max(200),
+        sku: z.string().min(1, "SKU is required").max(100),
         price: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid price format"),
         comparePrice: z
           .string()
           .regex(/^\d+(\.\d{1,2})?$/)
           .optional(),
-        inventoryQty: z.number().int().min(0).default(0),
+        inventoryQty: z.number().int().min(0).max(1000000).default(0),
         weight: z
           .string()
           .regex(/^\d+(\.\d{1,2})?$/)
@@ -28,6 +30,7 @@ const productSchema = z.object({
         isActive: z.boolean().default(true),
       })
     )
+    .max(100)
     .optional(),
 });
 
@@ -74,7 +77,7 @@ export default defineEventHandler(async (event) => {
     // Fetch the complete product with variants
     const { data: product, error: fetchError } = await supabase
       .from("products")
-      .select("*, categories(*), product_variants(*)")
+      .select("*, categories(*), product_variants(*), product_images(*)")
       .eq("id", newProduct.id)
       .single();
     if (fetchError) throw fetchError;

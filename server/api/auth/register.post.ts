@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getSupabase } from "~~/server/utils/supabase";
 import { isRateLimited } from "~~/server/utils/rateLimit";
+import { getClientIp } from "~~/server/utils/clientIp";
 import { ensureAdminRole } from "~~/server/utils/adminBootstrap";
 import { claimGuestOrders } from "~~/server/utils/orderClaim";
 
@@ -12,9 +13,13 @@ const registerSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
-    // Abuse protection: 5 registrations per IP per hour.
-    const ip = getRequestIP(event) || "unknown";
-    const { limited, retryAfterSecs } = isRateLimited(`register:${ip}`, {
+    // Abuse protection: 5 registrations per IP per hour. The email is
+    // folded into the key so one IP can't spray many addresses cheaply
+    // and one address can't be sprayed from many IPs without limit.
+    const rawBody = await readBody(event).catch(() => ({}));
+    const rateEmail = String((rawBody as any)?.email || "").toLowerCase().slice(0, 254);
+    const ip = getClientIp(event);
+    const { limited, retryAfterSecs } = isRateLimited(`register:${ip}:${rateEmail}`, {
       limit: 5,
       windowSecs: 3600,
     });
@@ -68,7 +73,13 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: "Registration failed" });
     }
 
-    await ensureAdminRole(data.user.id, data.user.email || body.email);
+    // Admin bootstrap ONLY for verified addresses: stamping an
+    // unconfirmed signup would hand admin to anyone who types an
+    // allow-listed email without inbox access. The duplicate-email path
+    // above stays as-is — a correct password already proves ownership.
+    if (data.session && (data.user as any)?.email_confirmed_at) {
+      await ensureAdminRole(data.user.id, data.user.email || body.email);
+    }
 
     // Only claim when a session was actually created (confirm-email OFF).
     // If email confirmation is required, the user isn't logged in yet —

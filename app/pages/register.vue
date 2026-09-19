@@ -33,10 +33,8 @@ async function submit() {
     } else {
       toast.success("Account created — welcome!");
     }
-    // Only internal paths are honored (open-redirect protection).
-    const redirect = String(route.query.redirect || "");
-    const safe = redirect.startsWith("/") && !redirect.startsWith("//");
-    const dest = safe ? redirect : isAdmin.value ? "/admin" : "/menu";
+    // Only provably internal paths are honored (open-redirect protection).
+    const dest = safeRedirectPath(route.query.redirect) ?? (isAdmin.value ? "/admin" : "/menu");
     if (data?.signedInInstead) {
       // Let them read the "welcome back" note before leaving.
       await new Promise((r) => setTimeout(r, 1800));

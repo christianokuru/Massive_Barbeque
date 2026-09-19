@@ -43,6 +43,12 @@ export function toProduct(row: any) {
     description: row.description,
     categoryId: row.category_id,
     imageUrl: row.image_url,
+    // Gallery extras (cover photo stays `imageUrl`). Ordered oldest-first
+    // so the storefront can render cover + extras in admin order.
+    images: (row.product_images || [])
+      .slice()
+      .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((img: any) => ({ id: img.id, imageUrl: img.image_url })),
     isActive: row.is_active,
     featured: row.featured,
     variants: (row.product_variants || row.variants || []).map(toVariant),

@@ -13,7 +13,21 @@ function storageAvailable(): boolean {
 function isRow(value: unknown): value is CartRow {
   if (!value || typeof value !== "object") return false;
   const row = value as Record<string, unknown>;
-  return typeof row.variantId === "number" && typeof row.quantity === "number";
+  // Strict shape: poisoned rows (object prices, giant strings, absurd
+  // quantities) are dropped instead of persisting into the UI.
+  if (typeof row.variantId !== "number" || !Number.isInteger(row.variantId)) return false;
+  if (typeof row.quantity !== "number" || !Number.isFinite(row.quantity)) return false;
+  if (row.price !== undefined && typeof row.price !== "string" && typeof row.price !== "number") {
+    return false;
+  }
+  if (typeof row.price === "string" && row.price.length > 32) return false;
+  for (const key of ["name", "variantName", "sku", "imageUrl"] as const) {
+    const v = row[key];
+    if (v !== undefined && v !== null && (typeof v !== "string" || (v as string).length > 500)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function createLocalCartStorage(key = "mb:cart:v1"): CartStorage {
@@ -28,7 +42,7 @@ export function createLocalCartStorage(key = "mb:cart:v1"): CartStorage {
           ? parsed
           : (parsed as { rows?: unknown } | null)?.rows;
         if (!Array.isArray(rows)) return null;
-        const valid = rows.filter(isRow);
+        const valid = rows.filter(isRow).slice(0, 50);
         return valid.length ? valid : null;
       } catch {
         return null;

@@ -40,7 +40,7 @@ Server keys are read via `useRuntimeConfig()` in `nuxt.config.ts`.
 | `SUPABASE_KEY` (anon) | yes (public) | `runtimeConfig.public.supabaseKey` |
 | `SUPABASE_SERVICE_ROLE_KEY` | **server-only** | `runtimeConfig.supabaseServiceRoleKey` |
 | `ADMIN_EMAILS` (comma-separated) | no | `runtimeConfig.adminEmails` |
-| `OWNER_EMAILS` (empty → falls back to `ADMIN_EMAILS`) | no | `runtimeConfig.ownerEmails` |
+| `OWNER_EMAILS` (REQUIRED — no fallback) | no | `runtimeConfig.ownerEmails` |
 | `RESEND_API_KEY` | **server-only** | `runtimeConfig.resendApiKey` |
 | `FROM_EMAIL` | no | `runtimeConfig.fromEmail` |
 | `FROM_NAME` | no (`runtimeConfig` does **not** carry it) | — |
@@ -126,14 +126,15 @@ Server keys are read via `useRuntimeConfig()` in `nuxt.config.ts`.
 ### 3.3 Roles (admin governance)
 
 - The role lives in `app_metadata.role`; enforcement (middleware, `requireAdmin`,
-  RLS) reads it — never the env. Admins are **sticky**: nothing demotes implicitly,
-  and demoted accounts keep their JWT session until they sign out and back in.
+  RLS) reads it — never the env. Admins are **sticky**: nothing demotes implicitly;
+  demote revokes sessions via `signOut` so old JWTs die immediately.
 - `ADMIN_EMAILS` bootstraps admins on sign-up/sign-in via `ensureAdminRole`
-  (`server/utils/adminBootstrap.ts`). Promoting a non-existent email stores an
+  (`server/utils/adminBootstrap.ts`) — verified emails only. Promoting a non-existent email stores an
   `admin_invites` row that is consumed (deleted + audited as `invite_consumed`) on
-  signup. Owners (`OWNER_EMAILS`, empty → `ADMIN_EMAILS`) promote/demote at
-  `/admin/admins` (`GET/POST/DELETE /api/admin/admins`, `requireOwner`-guarded,
-  every action audited to `admin_audit_log`). Nobody can demote themselves;
+  signup. Owners (`OWNER_EMAILS`, REQUIRED — no fallback) promote/demote at
+  `/admin/admins` (`GET/POST/DELETE /api/admin/admins`, `requireOwner`-guarded
+  with confirmed-email check, every action audited to `admin_audit_log` with
+  actor IP, fail-closed). Nobody can demote themselves;
   owners are env-only, never UI-managed. Full detail: `docs/payment-webhooks.md`.
 
 ---
@@ -148,8 +149,9 @@ Schema.org `Restaurant` + `WebSite` JSON-LD, the global `<Toaster>`
 (`position="bottom-right"`, 4s, rich colors), and a global auth hydrate
 (`useAuth().fetchSession()` on mount so `Navbar` doesn't flash "Log in" after
 full reloads/gateway returns). GA4 is hand-injected once
-(`window.gtag` dedup, `send_page_view: false`) with manual `page_view` on
-`route.fullPath` change, gated on `config.public.gaId` — don't double-instrument.
+(`window.gtag` dedup, `send_page_view: false`, `gaId` shape-validated) with
+manual `page_view` on `route.path` change (**never `fullPath`** — query strings
+carry order UUIDs) — don't double-instrument.
 
 ### 4.2 Layouts (`app/layouts/`)
 
@@ -190,8 +192,10 @@ Public pages use the default layout with no middleware; all `/dashboard/*` use
   to `paystack`. Place-order button reads `Pay ₦<total>` / `Placing order…`.
 - `checkout/confirm.vue`: state machine `loading|verifying|paid|failed|received`.
   `status=cancelled` from Flutterwave short-circuits to `failed` with no verify.
-  If the provider says paid, a missing local order is recovered via the verify
-  response's embedded order id (mangled return URLs). Paid/received link to
+  Guest reads/verifies present the `sessionStorage` guest token (`mb:guest:<id>`).
+  `paid` renders only when the bound verify response (`paid`, matching `orderId`,
+  amount ≥ total) confirms OUR order — a cheap-order reference never confirms
+  an expensive one. Paid/received link to
   `/menu` + `/dashboard/orders`; failed links to `/checkout` + `/menu`.
  - `login.vue` / `register.vue` (`auth` layout): 404 from login reveals the
    `Create one → /register` link; register surfaces `emailConfirmationRequired`
@@ -248,7 +252,9 @@ Live custom components (`app/components/custom/`):
   (controlled drawer, auto-closes on route change, **no scroll-lock of its own** —
   the parent owns it), `Footer` (back-to-top prefers `$lenis.scrollTo`),
   `AuthShell` (login-02 split screen used by all four auth pages), `Logo`
-  (inline SVG), `PasswordInput` (`defineModel`, Eye/EyeOff toggle),
+  (`/images/Food/Logos/Primary.png`, `variant="footer"` swaps in
+  `footer-logo.png` for the footer's light background — shared by navbar,
+  footer, auth shell, mobile nav), `PasswordInput` (`defineModel`, Eye/EyeOff toggle),
   `Button` (cva variants; `asChild` prop is declared but dead — never read).
 - `landing/` (live homepage, all presentational/props-only): `HeroSection`
   (`NuxtImg` 1920×1080 webp preload), `FreshOffGrill` (caps at 4 `showcase`
@@ -276,10 +282,11 @@ Live custom components (`app/components/custom/`):
   copy-paste bug: the last-page button renders `ChevronRight` instead of
   `ChevronsRight`), `features.ts` (TanStack feature registration),
   `products/AdminProductCard` (edit/delete overlays, destructive confirm dialog),
-  `products/ProductDialog` (405 lines, mounted by `admin.vue`; zod validation
+  `products/ProductDialog` (zod validation
   with `PRICE_RE = /^\d+(\.\d{1,2})?$/`; slug auto-derives from name until
-  hand-edited; dirty-guarded close with discard confirm; image upload via
-  `uploadImage`; variant diffing via `variantKey`).
+  hand-edited; dirty-guarded close with discard confirm; cover upload via
+  `uploadImage` + extras gallery (staged, applied on Save); variant diffing
+  via `variantKey`).
 
 Legacy (do not build on): `custom/Home/*` + `useProjects.ts` — Kylva
 luxury-agency template leftovers (fashion/beauty copy, `data-aos` anchors,
@@ -366,19 +373,25 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
 - `rateLimit.ts`: in-memory sliding window (`Map<key, timestamps[]>`, injectable
   `now` for tests, opportunistic cleanup past 5000 keys). **Single-instance
   only** — needs Redis/Upstash behind multiple instances. `clearRateLimits()` is
-  the test helper. Limits (per IP): login 10/15min, register 5/hr, orders
-  20/15min, contact 5/hr, pay-init 30/hr, pay-verify 60/hr, admin-promote 20/hr.
+  the test helper. IPs come from `clientIp.ts` (socket-first, X-Forwarded-For
+  only behind a local proxy) with composite keys (IP+email for auth,
+  IP+order for pay-init, IP+reference for verify). Limits: login 10/15min,
+  register 5/hr, reset 5/hr, orders 20/15min, contact 5/hr, order-read
+  120/hr, pay-init 10/hr, pay-verify 60/hr, webhooks 300/hr, admin
+  promote/demote 20/hr.
 - `siteUrl.ts`: `gatewayReturnBase` trusts the Host header **only for loopback**
   (`localhost`, `127.0.0.1`, `[::1]`, `http://`); everything else uses canonical
   `appUrl`. `confirmUrl(event, orderId?)` appends `/checkout/confirm(?order=)`.
 - `adminGovernance.ts`: `parseEmailList`, `ownerEmails`/`adminAllowEmails`,
-  `isOwnerEmail` (empty owners → `ADMIN_EMAILS` fallback), `requireOwner`
-  (403 `"Forbidden: owner only"`), `auditAdminAction` (never throws — logs and
-  continues), `stampAdminRole`/`stripAdminRole` (merge/delete `app_metadata.role`
-  via service client; sessions keep old JWT until re-login), `findUserIdByEmail`
+  `isOwnerEmail` (**fail closed — no ADMIN_EMAILS fallback; OWNER_EMAILS is
+  required**), `requireOwner` (403 `"Forbidden: owner only"`, confirmed email
+  required), `auditAdminAction` (retries, then throws — fail-closed; records
+  actor IP), `stampAdminRole`/`stripAdminRole` (merge/delete `app_metadata.role`
+  via service client; demote also revokes sessions via `signOut`), `findUserIdByEmail`
   (paginated `listUsers`, up to 10×1000, case-insensitive).
  - `adminBootstrap.ts`: `ensureAdminRole` — allow-listed (or invited) emails get
-   stamped on sign-up/sign-in; invites are deleted + audited on consume.
+   stamped on sign-up/sign-in **only with a confirmed email**; invites are
+   deleted + audited on consume.
  - `orderClaim.ts`: `claimGuestOrders(userId, email)` — service-role update of
    `user_id IS NULL AND customer_email ILIKE email` rows to `userId`
    (case-insensitive exact, JS re-filter for `%`/`_` safety). Called from
@@ -400,9 +413,10 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
 ### 5.4 Catalog (public, user-scoped, no rate limits)
 
 - `GET /api/products` (`categoryId`, `featured === "true"`, `search` ilike on
-  name, `limit` default 50, `offset`): active products newest-first, inactive
+  name, `limit` default 50 clamped ≤100, non-negative `offset`, LIKE wildcards
+  escaped): active products newest-first, inactive
   variants filtered in JS. Returns `{products, pagination: {total, limit, offset}}`.
-- `GET /api/products/:id`: 400 without id, 404 when missing.
+- `GET /api/products/:id`: 400 without id, 404 when missing or inactive.
 - `GET /api/categories` (`activeOnly` default true unless `"false"`): attaches
   `parent` via a second query when any `parent_id` is set.
 
@@ -416,41 +430,49 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
   service role is required (same pattern as `[id].get`). Makes pre-account guest
   orders visible immediately after login, without waiting for the async claim.
 - `GET /api/orders/:id`: service-role read + code authz — owner, `role ===
-  "admin"`, or guest orders (`user_id` null). Keep that shape: the guest
-  checkout-confirm page depends on it.
+  "admin"`, or guest order **with a valid HMAC `guestToken`** (bound to
+  order + email, `?token=`; denied → 404). UUID alone authorizes nothing.
+- `POST /api/orders` (§3.1): guest-friendly, service-role writes, zod caps
+  (≤50 lines, qty 1–99, merged + capped at 99 per variant, string `.max()`
+  caps, delivery-requires-address, safe `pickupTime`), stock check against
+  `inventory_qty`, random `MB########` numbers, logged-in email forced from
+  the session, `guestToken` issued for guest orders.
 
 ### 5.6 Contact
 
-`POST /api/contact`: 5/hr per IP. Schema `{name ≥2, email, brand ≥1, message ≥10}`
-via `readBody` + `parse` (not `readValidatedBody`). Sends via Resend with HTML
+`POST /api/contact`: 5/hr per IP (proxy-aware). Schema `{name 2–100, email ≤254,
+brand 1–200, message 10–2000}` plus a `company` honeypot (tripped → silent
+success) via `readBody` + `parse` (not `readValidatedBody`). Sends via Resend with HTML
 entity escaping (`escapeHtml`), `replyTo` = sender. Defaults keep it working
 without env: from `onboarding@resend.dev`, to `info@massivebarbeque.com`.
 
 ### 5.7 Payments (`server/api/payments/`)
 
-- `POST .../paystack/initialize` (`{email, orderId, metadata?}`) and
+- `POST .../paystack/initialize` (`{email, orderId, guestToken?, metadata?}`) and
   `POST .../flutterwave/initialize` (adds `customerName?`, `customerPhone?`):
-  30/hr per IP (**no `Retry-After` header**, unlike auth/order/contact routes).
-  Both re-read the order via service role and reject unknown (`404`), already
-  paid (`400`), wrong-provider (`400`), and non-payable totals (`400`) before
-  calling the provider. Amounts come from `orders.total` only.
-- `POST .../paystack/verify` (`{reference}`) and
-  `POST .../flutterwave/verify` (`{transaction_id}`): 60/hr per IP, display-only,
-  no DB writes. Flutterwave additionally requires the `tx_ref` to exist in local
-  `payments` (`404 "Transaction not found."`) so it can't be used as a general
-  oracle. **Known bug:** both verify catches handle only `ZodError` and fall
-  through to 500 — a rate-limit 429 is masked as 500.
-- `POST .../webhooks/paystack`: no auth/rate limit (it's the provider calling).
-  Reads the **raw** body (`readRawBody`), requires `x-paystack-signature`, and
-  HMAC-SHA512-verifies it over the raw bytes — never verify over parsed JSON.
-  Only `charge.success` is processed, and only if the kobo amount is `>=` the
-  order total (`currency === "NGN"` enforced); mismatches are logged and
-  acknowledged without writes. **Known bug:** the outer catch returns 500
-  unconditionally, masking the 400/401 signature errors above.
-- `POST .../webhooks/flutterwave`: parsed body + `verif-hash` header, verified
-  as `sha256(secret)` (hash of the secret, not an HMAC of the body — keep that
-  shape). Only `charge.completed`, same dual-write, same amount-guard and same
-  catch-masking note as Paystack.
+  10/hr per IP+order. Ownership enforced first (`orderAccess.ts`: owner,
+  admin, or guest token), 5-pending-rows-per-order cap, receipts use the
+  order email, metadata is capped strings-only (Flutterwave `orderId`
+  forced after spread). Amounts come from `orders.total` only.
+- `POST .../paystack/verify` (`{reference, guestToken?}`) and
+  `POST .../flutterwave/verify` (`{transaction_id, guestToken?}`): 60/hr per
+  IP+reference, display-only, no DB writes, ownership-enforced, minimal
+  `{paid, orderId, amount, currency}` response bound to our order (never raw
+  provider payload), inner status codes preserved. Flutterwave additionally
+  requires the `tx_ref` to exist in local `payments`.
+- `POST .../webhooks/paystack`: rate-limited (300/hr). Reads the **raw** body
+  (`readRawBody`), requires `x-paystack-signature`, HMAC-SHA512-verified over
+  the raw bytes with constant-time compare — never verify over parsed JSON.
+  Only `charge.success` is processed; the transaction is **re-verified with
+  Paystack** before writing, and only if the kobo amount is `>=` the order
+  total (`currency === "NGN"` enforced); mismatches are logged and
+  acknowledged without writes. Only pending→paid transitions (idempotent).
+  Auth failures return 401/400 (never 500 — no retry storms).
+- `POST .../webhooks/flutterwave`: rate-limited (300/hr), parsed body +
+  `verif-hash` header gating noise only (static hash is replayable alone —
+  the transaction is **re-verified** via `GET /v3/transactions/:id/verify`
+  before any write). Only `charge.completed`, same dual-write, same
+  amount-guard, same idempotency, same honest status codes as Paystack.
 - Emails go through Resend (`server-only` key).
 
 ### 5.8 Admin (`server/api/admin/`, all `requireAdmin` unless noted)
@@ -460,23 +482,32 @@ without env: from `onboarding@resend.dev`, to `info@massivebarbeque.com`.
 - `POST /api/admin/admins` (`requireOwner`, 20/hr per IP, no `Retry-After`):
   owners-by-env are rejected (`400`); existing users are stamped (`promoted`),
   unknown emails become invites (`invited`); both audited.
-- `DELETE /api/admin/admins` (`requireOwner`): no self-demote, no owner-demote
-  (`400`s), 404 for unknown emails, audited.
+- `DELETE /api/admin/admins` (`requireOwner`, 20/hr per IP): no self-demote, no owner-demote
+  (`400`s), 404 for unknown emails, audited; sessions revoked on demote.
 - `GET /api/admin/orders`: **user-scoped** client (works through the admin RLS
   policy), full table newest-first.
-- `PUT /api/admin/orders/:id/status`: `{status, paymentStatus?}` — validates the
-  enums only; does **not** enforce `canTransitionOrder`.
-- `GET /api/admin/products`: service-role read (includes inactive).
+- `PUT /api/admin/orders/:id/status`: `{status, paymentStatus?}` — **enforces
+  `canTransitionOrder`**, forbids hand-setting `payment_status: paid`
+  (webhook-only), audited as `status_change` fail-closed.
+- `GET /api/admin/products`: service-role read (includes inactive + extras).
 - `POST /api/admin/products`: embedded variant creation (price regex
-  `^\d+(\.\d{1,2})?$`); `PUT /api/admin/products/:id` maps friendly keys via
+  `^\d+(\.\d{1,2})?$`, capped strings, **required** cover `imageUrl` —
+  https or site-relative `/…` per `server/utils/productImages.ts`);
+  `PUT /api/admin/products/:id` maps friendly keys via
   `FIELD_MAP` (partial updates, **no try/catch** — errors bubble to Nuxt's
-  handler); `DELETE` likewise bare.
+  handler; a sent `imageUrl: null` fails validation so the cover can never
+  be cleared); `DELETE` likewise bare.
 - `POST /api/admin/products/images`: multipart `file` field → `product-images`
-  bucket, allow-list `jpeg/png/webp`, 5MB max, random `admin-<ts>-<rand>.<ext>`
+  bucket, **magic-byte sniffed** (`jpeg/png/webp`, ext + Content-Type from
+  content, never filename), 5MB max, random `admin-<ts>-<rand>.<ext>`
   path, `upsert: false`, returns `{url, path}` (public URL).
+- Gallery extras: `POST /api/admin/products/:id/images` `{imageUrl}` (cap 8,
+  auto `sort_order`); `DELETE /api/admin/product-images/:id` (cover
+  untouched, best-effort bucket cleanup). Public `GET /api/products/:id`
+  includes extras; `ProductGallery` renders cover + thumbnails.
 - Variants (`POST /api/admin/variants`, `PUT/DELETE .../variants/:id`): raw rows
   in/out (not mapped); same price regex; create returns `{success, variant}`.
-- `GET /api/admin/customers/count`: paginated `listUsers` accumulation.
+- `GET /api/admin/customers/count`: cached 60s, page-capped (10), excludes admins.
 
 ---
 
@@ -496,19 +527,30 @@ without env: from `onboarding@resend.dev`, to `info@massivebarbeque.com`.
   selects scoped to own orders.
 - `0002_category_parent.sql`: optional `categories.parent_id` self-FK + index.
 - `0003_admin_governance.sql`: `admin_invites` (email PK) + `admin_audit_log`
-  (promote/demote/invite/invite_consumed CHECK). RLS on with **zero policies** =
+  (promote/demote/invite/invite_consumed/`status_change` CHECK, `actor_ip`).
+  RLS on with **zero policies** =
   service-role only. (The "zero policies" phrase applies to these two tables,
   not the whole DB.)
+- `0004_security_hardening.sql`: `WITH CHECK` on addresses; split cart
+  policies; catalog selects restricted to `is_active = true`; public-read
+  policy for the `product-images` bucket (no anon writes).
+- `0005_product_images.sql`: `product_images` (extra gallery photos per
+  product, `sort_order`, cascade delete; RLS active-only select, writes
+  service-role only via the admin API).
 - No local migration runner — apply in the Supabase SQL editor.
 
 ### 6.2 Seed (`supabase/seed.mjs`)
 
 `node supabase/seed.mjs` (parses `.env` itself without overriding existing env).
-Idempotent upserts on category slug / product slug / variant sku. Seeds 5
-categories (`barbeque-fish`, `grilled-chicken`, `turkey`, `croaker`, `sides`) and
-13 products / 17 variants (catfish 8500/12000, chicken half 5000 / full 9500,
-turkey 7500/10500, croaker 10000/14000, wings platter 6000, sides 1500–4000).
-Featured: catfish, full chicken, croaker.
+Idempotent upserts on category slug / product slug / variant sku, plus
+retirement deletes for anything not on the flyer (order history keeps its
+snapshots). Seeds 5 categories (`barbeque-fish`, `grilled-chicken`, `turkey`,
+`croaker`, `sides`) and 9 products / 17 variants straight from the flyer
+(`public/images/Food/menu.jpeg`): chicken 7000/13000/25000, catfish
+8500/11000/14000, croaker 9000/12000/15000, turkey 10000/18000/35000, sides
+sides 2000–3000, catfish pepper soup 9000. Every product has a real
+cover photo wired from `public/images/Food/`.
+Featured: chicken, catfish, croaker.
 
 ### 6.3 Pricing & status (`shared/`)
 
@@ -522,7 +564,7 @@ Featured: catfish, full chicken, croaker.
   `PAYMENT_STATUSES` (`pending, paid, failed, refunded`), and
   `canTransitionOrder` (forward-only pipeline, `cancelled` reachable until
   completion, terminal states self-loop for idempotent re-saves). Reuse for
-  status logic — but note the admin PUT doesn't enforce it.
+  status logic — the admin PUT enforces it server-side.
 
 ### 6.4 Tests (`tests/`, all hermetic)
 
@@ -532,7 +574,9 @@ order, forward/skip/backward/cancel/terminal/self-transition matrix),
 `cartStore` (merge/floor/cap/immutability, storage round-trip + corrupt-data
 `null`s), `siteUrl` (loopback passthrough, `evil.com` and
 `massivebarbeque.com.evil.com` → canonical), `adminGovernance` (list parsing,
-owner fallback only while owners empty).
+fail-closed ownership — no admin-list fallback), `guestToken` (issue/verify,
+tamper/expiry rejection), `clientIp` (socket-first, XFF only behind local
+proxy), `safeRedirect` (internal paths only).
 
 ---
 
@@ -547,21 +591,21 @@ owner fallback only while owners empty).
 - SEO: static sitemap (`zeroRuntime`, `/`, `/menu`, `/about`, `/contact`),
   `linkChecker` off, Restaurant Schema.org identity, `ogImage` on, Material
   Symbols font, `theme-color #D84315`.
-- Security headers on `/**` (`nosniff`, `DENY`, strict referrer, locked-down
-  `Permissions-Policy`) are defense-in-depth only — auth lives in routes +
-  middleware.
+- Security headers on `/**` (CSP, HSTS, `nosniff`, `DENY`, strict referrer,
+  locked-down `Permissions-Policy`) are defense-in-depth only — auth lives in
+  routes + middleware. CSP allowlist covers self, Google Fonts, GA4, and the
+  Paystack/Flutterwave checkout hosts — extend it when adding third parties.
 
 ---
 
 ## 8. Known issues & small bugs (verified in code, unfixed)
 
-1. Verify endpoints (`paystack/verify`, `flutterwave/verify`) mask rate-limit
-   429s as 500s — their catch handles only `ZodError` and doesn't rethrow
-   `statusCode`.
-2. Both webhook catches return 500 unconditionally, masking their own 400/401
-   signature errors. Functionally the provider still sees a failure, but the
-   status shape lies; don't "fix" by changing acknowledge-on-mismatch behavior
-   (logging + `{success: true}` without writes is intentional).
+1. ~~Verify endpoints mask rate-limit 429s as 500s~~ — FIXED 2026-09-18
+   (inner `statusCode` preserved; minimal bound responses).
+2. ~~Webhook catches return 500 unconditionally~~ — FIXED 2026-09-18
+   (401/400 preserved, provider re-verify, idempotent pending→paid).
+   Acknowledge-on-amount-mismatch (log + `{success: true}` without writes)
+   is intentional — keep it.
 3. `DataTable.vue` last-page button renders `ChevronRight` instead of
    `ChevronsRight` (first-page correctly uses `ChevronsLeft`).
 4. `Button.vue` declares an `asChild` prop it never reads.

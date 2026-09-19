@@ -22,7 +22,7 @@ defineProps<Props>();
     <li
       v-for="item in items"
       :key="item.title"
-      class="flex items-center gap-3 rounded-xl bg-muted p-4"
+      class="flex items-center gap-3 rounded-xl border border-border bg-muted p-4"
     >
       <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
         <M3Icon :name="item.icon" :size="22" />

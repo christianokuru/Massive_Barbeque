@@ -2,10 +2,13 @@ import { getServiceSupabase, requireUser } from "~~/server/utils/supabase";
 
 // Explicit admin governance. Rules:
 // - Admins stay admins until an owner demotes them (sticky by default).
-// - Only owners manage admins. Owners come from OWNER_EMAILS; when it is
-//   empty, ADMIN_EMAILS act as owners (bootstrap fallback, documented).
+// - Only owners manage admins. Owners come from OWNER_EMAILS ONLY —
+//   there is intentionally no fallback to ADMIN_EMAILS (fail closed):
+//   with OWNER_EMAILS unset, nobody is an owner until it is configured.
 // - Owners themselves can only be added/removed via env (never via UI),
 //   so a compromised admin account cannot seize ownership.
+// - Owner checks require a confirmed email: an unconfirmed address
+//   claiming an owner email is never trusted.
 
 export function parseEmailList(raw: unknown): string[] {
   return String(raw || "")
@@ -22,20 +25,22 @@ export function adminAllowEmails(config = useRuntimeConfig()): string[] {
   return parseEmailList((config as any).adminEmails);
 }
 
-/** Pure and unit-tested: is this email an owner? */
-export function isOwnerEmail(email: unknown, owners: string[], adminsFallback: string[]): boolean {
+/** Pure and unit-tested: is this email an owner? Fail closed — no
+ *  fallback to the admin allow-list. Configure OWNER_EMAILS. */
+export function isOwnerEmail(email: unknown, owners: string[]): boolean {
   const normalized = String(email || "").trim().toLowerCase();
   if (!normalized) return false;
-  if (owners.includes(normalized)) return true;
-  // Bootstrap fallback while OWNER_EMAILS is unset.
-  if (owners.length === 0 && adminsFallback.includes(normalized)) return true;
-  return false;
+  return owners.includes(normalized);
 }
 
 export async function requireOwner(event: any) {
   const { user } = await requireUser(event);
   const config = useRuntimeConfig();
-  if (!isOwnerEmail(user.email, ownerEmails(config), adminAllowEmails(config))) {
+  // Unconfirmed emails are never trusted for ownership.
+  if (!(user as any)?.email_confirmed_at) {
+    throw createError({ statusCode: 403, statusMessage: "Forbidden: owner only" });
+  }
+  if (!isOwnerEmail(user.email, ownerEmails(config))) {
     throw createError({ statusCode: 403, statusMessage: "Forbidden: owner only" });
   }
   return { user };
@@ -43,19 +48,36 @@ export async function requireOwner(event: any) {
 
 export async function auditAdminAction(
   actorEmail: string | null,
-  action: "promote" | "demote" | "invite" | "invite_consumed",
-  targetEmail: string
+  action: "promote" | "demote" | "invite" | "invite_consumed" | "status_change",
+  targetEmail: string,
+  actorIp?: string
 ): Promise<void> {
-  try {
-    await getServiceSupabase().from("admin_audit_log").insert({
+  // Audit integrity: retry once, then fail loud. Callers treat a throw
+  // as a 500 so a silent governance action can never complete.
+  // The actor_ip column ships in migration 0004; fall back to a row
+  // without it so pre-migration databases keep working.
+  const rows = [
+    {
       actor_email: actorEmail,
       action,
       target_email: targetEmail.toLowerCase(),
-    });
-  } catch (error) {
-    // Auditing must never break the action itself — log and continue.
-    console.error("Admin audit write failed:", (error as any)?.message || error);
+      actor_ip: actorIp || null,
+    },
+    { actor_email: actorEmail, action, target_email: targetEmail.toLowerCase() },
+  ];
+  let lastError: any = null;
+  for (const row of rows) {
+    try {
+      await getServiceSupabase().from("admin_audit_log").insert(row);
+      return;
+    } catch (error) {
+      // First shape fails when actor_ip doesn't exist yet — fall
+      // through to the legacy shape before giving up.
+      lastError = error;
+    }
   }
+  console.error("Admin audit write failed:", (lastError as any)?.message || lastError);
+  throw createError({ statusCode: 500, statusMessage: "Audit write failed." });
 }
 
 /** Stamp the admin role. Returns true when the user ends up admin. */

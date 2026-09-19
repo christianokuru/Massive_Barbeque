@@ -14,6 +14,11 @@ export interface AdminProductVariant {
   isActive?: boolean
 }
 
+export interface AdminProductImage {
+  id?: number
+  imageUrl: string
+}
+
 export interface AdminProduct {
   id: number | string
   name: string
@@ -21,6 +26,7 @@ export interface AdminProduct {
   description?: string | null
   categoryId?: number | null
   imageUrl?: string | null
+  images?: AdminProductImage[]
   isActive?: boolean
   featured?: boolean
   variants?: AdminProductVariant[]
@@ -167,10 +173,17 @@ export function useAdminProducts() {
     description?: string
     categoryId?: number | null
     imageUrl?: string
+    // Staged gallery extras: fresh URLs to attach, persisted ids to detach.
+    // Applied only on Save so discarding the dialog drops them silently.
+    addedImageUrls?: string[]
+    removedImageIds?: number[]
     isActive: boolean
     featured: boolean
     variants: AdminProductVariant[]
   }) {
+    if (!form.imageUrl?.trim()) {
+      throw new Error("A cover photo is required — every food needs at least one picture.");
+    }
     const payload = {
       name: form.name.trim(),
       slug: (form.slug || slugify(form.name)).trim(),
@@ -197,10 +210,26 @@ export function useAdminProducts() {
           })),
         },
       });
+      // Extras can only attach once the product exists.
+      for (const imageUrl of form.addedImageUrls ?? []) {
+        await $fetch(`/api/admin/products/${data.product.id}/images`, {
+          method: "POST",
+          body: { imageUrl },
+        });
+      }
       toast.success(`"${data.product.name}" created.`);
     } else {
       const id = dialog.value.productId;
       await $fetch(`/api/admin/products/${id}`, { method: "PUT", body: payload });
+      for (const imageUrl of form.addedImageUrls ?? []) {
+        await $fetch(`/api/admin/products/${id}/images`, {
+          method: "POST",
+          body: { imageUrl },
+        });
+      }
+      for (const imageId of form.removedImageIds ?? []) {
+        await $fetch(`/api/admin/product-images/${imageId}`, { method: "DELETE" });
+      }
       await syncVariants(Number(id), form.variants, editingProduct.value?.variants ?? []);
       toast.success("Product updated.");
     }

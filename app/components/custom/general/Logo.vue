@@ -1,28 +1,25 @@
-<script setup>
-// Brand wordmark — fill follows the M3 primary token (both color modes).
+<script setup lang="ts">
+// Brand mark, shared by the navbar, footer, auth shell and mobile nav.
+// `variant="footer"` swaps in the dark-text lockup drawn for the footer's
+// lighter background; everywhere else uses the primary logo (drawn for
+// dark surfaces). Rendered height follows the caller's layout.
+interface Props {
+  variant?: "primary" | "footer";
+}
+
+const props = withDefaults(defineProps<Props>(), { variant: "primary" });
+
+const src = computed(() =>
+  props.variant === "footer"
+    ? "/images/Food/Logos/footer-logo.png"
+    : "/images/Food/Logos/Primary.png",
+);
 </script>
 
 <template>
-  <svg 
-    width="200" 
-    height="32" 
-    viewBox="0 0 200 32" 
-    fill="none" 
-    xmlns="http://www.w3.org/2000/svg"
-    class="h-6 w-auto sm:h-8"
-  >
-    <text
-      x="1"
-      y="23"
-      fill="var(--color-primary)"
-      font-family="'Cormorant Garamond', Georgia, serif"
-      font-size="21"
-      font-weight="600"
-      letter-spacing="0.08em"
-      textLength="198"
-      lengthAdjust="spacingAndGlyphs"
-    >
-      MASSIVE BARBEQUE
-    </text>
-  </svg>
+  <img
+    :src="src"
+    alt="Massive Barbeque"
+    class="h-10 w-auto sm:h-11"
+  />
 </template>

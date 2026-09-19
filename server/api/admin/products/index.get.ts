@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     const admin = getServiceSupabase();
     const { data, error } = await admin
       .from("products")
-      .select("*, categories(*), product_variants(*)")
+      .select("*, categories(*), product_variants(*), product_images(*)")
       .order("created_at", { ascending: false });
     if (error) throw error;
 

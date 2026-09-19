@@ -5,11 +5,11 @@ const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 
 const variantSchema = z.object({
   productId: z.number().int().positive("Product is required"),
-  name: z.string().min(1, "Variant name is required"),
-  sku: z.string().min(1, "SKU is required"),
+  name: z.string().min(1, "Variant name is required").max(200),
+  sku: z.string().min(1, "SKU is required").max(100),
   price: z.string().regex(PRICE_RE, "Invalid price format"),
   comparePrice: z.string().regex(PRICE_RE).nullish(),
-  inventoryQty: z.number().int().min(0).default(0),
+  inventoryQty: z.number().int().min(0).max(1000000).default(0),
   weight: z.string().regex(PRICE_RE).nullish(),
   isActive: z.boolean().default(true),
 });

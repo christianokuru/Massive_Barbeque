@@ -15,9 +15,24 @@ type State = "loading" | "verifying" | "paid" | "failed" | "received";
 const state = ref<State>("loading");
 const order = ref<any>(null);
 
+// Guest proof for order reads: issued at order-create, kept in
+// sessionStorage (survives the gateway round-trip in the same tab).
+// Logged-in buyers don't need it — the session is their proof.
+function guestTokenFor(id: string | undefined): string | undefined {
+  if (!id || typeof sessionStorage === "undefined") return undefined;
+  try {
+    return sessionStorage.getItem(`mb:guest:${id}`) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchOrder(id: string) {
   try {
-    const r = await $fetch<{ order: any }>(`/api/orders/${id}`);
+    const token = guestTokenFor(id);
+    const r = await $fetch<{ order: any }>(
+      `/api/orders/${id}${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+    );
     order.value = r.order;
     return r.order;
   } catch {
@@ -25,25 +40,39 @@ async function fetchOrder(id: string) {
   }
 }
 
-/* Verify against the provider server-side and recover the order id
-   from the verify payload when the gateway mangled the return URL. */
+/* Verify against the provider server-side. The response is bound to our
+   order (reference + amount + currency + orderId checked server-side);
+   the page additionally requires the verified orderId to match the
+   order on screen — paying for a cheap order must never render an
+   expensive one as "confirmed". */
 async function verifyPayment(current: any) {
   const provider = current?.payment_method === "flutterwave" ? "flutterwave" : "paystack";
   try {
     if (provider === "flutterwave") {
       if (!flwTransactionId.value) return null;
-      const r = await $fetch<{ data: any }>("/api/payments/flutterwave/verify", {
-        method: "POST",
-        body: { transaction_id: flwTransactionId.value },
-      });
-      return { paid: r.data?.status === "successful", orderId: r.data?.meta?.orderId };
+      const r = await $fetch<{ paid: boolean; orderId: string; amount: number; currency: string }>(
+        "/api/payments/flutterwave/verify",
+        {
+          method: "POST",
+          body: {
+            transaction_id: flwTransactionId.value,
+            guestToken: guestTokenFor(orderId.value),
+          },
+        },
+      );
+      const bound = !current || r.orderId === current.id;
+      return { paid: r.paid === true && bound, orderId: r.orderId };
     }
     if (!gatewayRef.value) return null;
-    const r = await $fetch<{ data: any }>("/api/payments/paystack/verify", {
-      method: "POST",
-      body: { reference: gatewayRef.value },
-    });
-    return { paid: r.data?.status === "success", orderId: r.data?.metadata?.orderId };
+    const r = await $fetch<{ paid: boolean; orderId: string; amount: number; currency: string }>(
+      "/api/payments/paystack/verify",
+      {
+        method: "POST",
+        body: { reference: gatewayRef.value, guestToken: guestTokenFor(orderId.value) },
+      },
+    );
+    const bound = !current || r.orderId === current.id;
+    return { paid: r.paid === true && bound, orderId: r.orderId };
   } catch {
     return { paid: false, orderId: current?.id };
   }

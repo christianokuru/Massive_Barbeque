@@ -34,7 +34,7 @@ function toTop() {
       <div class="grid gap-10 pb-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1.2fr]">
         <!-- Brand -->
         <div>
-          <Logo class="mb-5" />
+          <Logo variant="footer" class="mb-5" />
           <p class="max-w-xs text-sm leading-relaxed text-inverse-on-surface/70">
             Premium BBQ in Lagos — catfish, chicken, turkey, croaker and sides.
             Grilled to order, delivered hot.

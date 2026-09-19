@@ -176,6 +176,7 @@ onUnmounted(() => observer?.disconnect());
     <div v-else class="mt-6 grid items-start gap-8 md:grid-cols-2">
       <ProductGallery
         :image-url="product.imageUrl"
+        :images="product.images ?? []"
         :name="product.name"
         :category-name="product.category?.name"
         :featured="product.featured"

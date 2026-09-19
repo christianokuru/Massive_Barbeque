@@ -51,13 +51,15 @@ export function useAuth() {
   }
 
   async function requestPasswordReset(email: string) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) throw error;
+    // Server endpoint: throttled + fixed redirect target (never the
+    // caller's Origin). Always resolves — unknown emails aren't revealed.
+    await $fetch("/api/auth/reset", { method: "POST", body: { email } });
   }
 
   async function updatePassword(password: string) {
+    if (typeof password !== "string" || password.length < 8 || password.length > 72) {
+      throw new Error("Password must be 8–72 characters.");
+    }
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
   }

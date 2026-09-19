@@ -10,6 +10,15 @@ watch(
   (v) => (qty.value = v)
 );
 
+// Clamp typed input to sane integers — raw v-model values (0, -5,
+// NaN, 999999) must never reach the cart.
+function commitQty() {
+  const n = Number(qty.value);
+  const clamped = !Number.isFinite(n) ? 1 : Math.min(99, Math.max(1, Math.floor(n)));
+  qty.value = clamped;
+  emit("update", clamped);
+}
+
 const lineTotal = computed(() => Number(props.item.price ?? 0) * props.item.quantity);
 const formatNaira = (n: number) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
@@ -41,8 +50,9 @@ const formatNaira = (n: number) =>
             v-model.number="qty"
             type="number"
             min="1"
+            max="99"
             class="w-14 rounded border border-border px-2 py-1 text-center text-sm"
-            @change="emit('update', qty)"
+            @change="commitQty"
           />
           <button class="rounded border border-border px-2 py-1 text-sm" @click="emit('update', qty + 1)">
             +

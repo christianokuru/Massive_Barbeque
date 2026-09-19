@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV !== "production" },
   modules: [
     "@nuxt/fonts",
     "@nuxt/icon",
@@ -209,6 +209,13 @@ export default defineNuxtConfig({
 
   // Security headers (defense in depth; app-level auth is enforced
   // in server routes + route middleware, not by these alone).
+  // CSP allowlist covers: self, Google Fonts, GA4, Paystack + Flutterwave
+  // inline checkout (scripts/frames/API), product imagery (Unsplash +
+  // Supabase storage), and the Supabase API the browser client calls.
+  // `script-src` keeps 'unsafe-inline' because @nuxtjs/color-mode applies
+  // the theme via an inline script and GA4 bootstraps inline — without it
+  // the app renders light mode and analytics dies. `ws:`/`wss:` keep
+  // Vite HMR working in dev.
   routeRules: {
     "/**": {
       headers: {
@@ -216,6 +223,19 @@ export default defineNuxtConfig({
         "X-Frame-Options": "DENY",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Content-Security-Policy": [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://js.paystack.co https://checkout.flutterwave.com",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+          "font-src 'self' https://fonts.gstatic.com",
+          "img-src 'self' data: https://images.unsplash.com https://*.supabase.co",
+          "connect-src 'self' ws: wss: https://*.supabase.co https://api.paystack.co https://api.flutterwave.com https://www.google-analytics.com https://region1.google-analytics.com",
+          "frame-src https://checkout.paystack.com https://checkout.flutterwave.com",
+          "frame-ancestors 'none'",
+          "object-src 'none'",
+          "base-uri 'self'",
+        ].join("; "),
       },
     },
   },
@@ -232,6 +252,9 @@ export default defineNuxtConfig({
     contactReceiverEmail: process.env.CONTACT_RECEIVER_EMAIL,
     paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
     flutterwaveSecretKey: process.env.FLUTTERWAVE_SECRET_KEY,
+    // Signs guest-order tokens (order reads, pay init/verify). Falls back
+    // to the service-role key when unset — set explicitly in production.
+    guestTokenSecret: process.env.GUEST_TOKEN_SECRET || "",
 
     // Public keys (exposed to client-side)
     public: {

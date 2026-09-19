@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Logo from "@/components/custom/general/Logo.vue";
 import {
   Sheet,
   SheetContent,
@@ -47,7 +48,8 @@ watch(() => route.fullPath, () => {
   <Sheet :open="open" @update:open="setOpen">
     <SheetContent side="right" class="w-[min(88vw,340px)] p-0 sm:max-w-sm">
       <SheetHeader class="border-b border-border p-4 text-left">
-        <SheetTitle>Menu</SheetTitle>
+        <Logo />
+        <SheetTitle class="sr-only">Menu</SheetTitle>
         <SheetDescription class="sr-only">Site navigation links</SheetDescription>
       </SheetHeader>
 

@@ -111,9 +111,10 @@ export default defineNuxtConfig({
 
   // Sitemap Configuration
   sitemap: {
-    // All sources are static (`urls` below) — prerender at build time and
-    // skip the runtime sitemap handlers to shrink the server bundle.
-    zeroRuntime: true,
+    // Runtime generation (NOT zeroRuntime): the zeroRuntime stub 500s
+    // whenever the file isn't prerendered, and the Vercel build never
+    // emitted it. The /api/__sitemap__/urls source is live in production,
+    // so generating on demand is the resilient option here.
     strictNuxtContentPaths: true,
     // Product pages come from /api/__sitemap__/urls (fail-soft: empty on
     // DB error so a Supabase blip never breaks the build). Prerendered

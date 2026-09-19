@@ -6,6 +6,9 @@ import Testimonials from "@/components/custom/landing/Testimonials.vue";
 import VisitUs from "@/components/custom/landing/VisitUs.vue";
 
 useSeoMeta({
+  // Brand-first homepage title: bypass the global "%s | Massive Barbeque"
+  // template so it doesn't stutter.
+  titleTemplate: "%s",
   title: "Massive Barbeque — Premium BBQ in Lagos",
   description:
     "Order premium BBQ in Lagos: barbeque catfish, chicken, turkey, croaker and sides. Delivery and pickup available.",

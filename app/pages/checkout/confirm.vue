@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
 
-useSeoMeta({ title: "Order confirmation | Massive Barbeque" });
+useSeoMeta({ title: "Order confirmation", robots: "noindex, nofollow" });
 
 const { isLoggedIn } = useAuth();
 const route = useRoute();

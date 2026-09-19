@@ -143,9 +143,9 @@ Server keys are read via `useRuntimeConfig()` in `nuxt.config.ts`.
 
 ### 4.1 App root (`app/app.vue`)
 
-Owns SEO defaults (`titleTemplate "%s | Massive Barbeque"`), a hardcoded canonical
-(`https://massivebarbeque.com${route.path}` — do not swap in the Host header),
-Schema.org `Restaurant` + `WebSite` JSON-LD, the global `<Toaster>`
+Owns SEO defaults (`titleTemplate "%s | Massive Barbeque"` — pages use short
+titles, the template appends the brand; homepage overrides with its own
+`titleTemplate: "%s"`), favicons (real submark), the global `<Toaster>`
 (`position="bottom-right"`, 4s, rich colors), and a global auth hydrate
 (`useAuth().fetchSession()` on mount so `Navbar` doesn't flash "Log in" after
 full reloads/gateway returns). GA4 is hand-injected once
@@ -589,9 +589,12 @@ proxy), `safeRedirect` (internal paths only).
   ignores `ui/**/index.*` — see §4.4.
 - `manualChunks` splits `@unovis` → `unovis` and `@tanstack` → `vue-table`
   (loaded on demand in `admin/index.vue`).
-- SEO: static sitemap (`zeroRuntime`, `/`, `/menu`, `/about`, `/contact`),
-  `linkChecker` off, Restaurant Schema.org identity, `ogImage` on, Material
-  Symbols font, `theme-color #D84315`.
+- SEO: static sitemap (`zeroRuntime`, `/`, `/menu`, `/about`, `/contact`,
+  plus live product URLs from prerendered `/api/__sitemap__/urls`),
+  robots disallows `/admin`, `/dashboard`, `/checkout`, auth pages (layouts
+  add `noindex`), `linkChecker` off, Restaurant Schema.org identity (real
+  logo), `ogImage` on (module defaults), PDP emits Product/Offers +
+  BreadcrumbList JSON-LD. Material Symbols font, `theme-color #D84315`.
 - Security headers on `/**` (CSP, HSTS, `nosniff`, `DENY`, strict referrer,
   locked-down `Permissions-Policy`) are defense-in-depth only — auth lives in
   routes + middleware. CSP allowlist covers self, Google Fonts, GA4, and the

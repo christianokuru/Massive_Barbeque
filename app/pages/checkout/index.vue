@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { z } from "zod";
 
-useSeoMeta({ title: "Checkout | Massive Barbeque" });
+useSeoMeta({ title: "Checkout", robots: "noindex, nofollow" });
 
 const { items, subtotal, clear } = useCart();
 

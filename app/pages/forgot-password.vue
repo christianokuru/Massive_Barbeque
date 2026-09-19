@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 definePageMeta({ layout: "auth" });
-useSeoMeta({ title: "Forgot password | Massive Barbeque" });
+useSeoMeta({ title: "Forgot password" });
 
 const { requestPasswordReset } = useAuth();
 const email = ref("");

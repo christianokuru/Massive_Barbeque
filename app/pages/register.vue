@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 definePageMeta({ layout: "auth" });
-useSeoMeta({ title: "Create account | Massive Barbeque" });
+useSeoMeta({ title: "Create account" });
 
 const { register, isAdmin } = useAuth();
 const route = useRoute();

@@ -1,5 +1,8 @@
 <script setup lang="ts">
-useSeoMeta({ title: "About Us | Massive Barbeque" });
+useSeoMeta({
+  title: "About Us",
+  description: "Massive Barbeque story — fire-grilled catfish, chicken, turkey and croaker in Lagos since 2021. Grilled to perfection, served with love.",
+});
 
 const specialties = [
   { name: "Barbeque Catfish", text: "Smoky, peppery, grilled to order — our signature." },

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 definePageMeta({ layout: "auth" });
-useSeoMeta({ title: "Set new password | Massive Barbeque" });
+useSeoMeta({ title: "Set new password" });
 
 const { updatePassword, fetchSession } = useAuth();
 const supabase = useSupabase();

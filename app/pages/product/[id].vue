@@ -113,12 +113,52 @@ const { data: sides } = await useAsyncData(
 );
 
 useSeoMeta({
-  title: () => (product.value ? `${product.value.name} | Massive Barbeque` : "Product | Massive Barbeque"),
+  title: () => product.value?.name ?? "Product",
   description: () => product.value?.description ?? "Order premium BBQ in Lagos.",
-  ogTitle: () => (product.value ? `${product.value.name} | Massive Barbeque` : "Massive Barbeque"),
+  ogTitle: () => product.value?.name ?? "Massive Barbeque",
   ogDescription: () => product.value?.description ?? "Order premium BBQ in Lagos.",
   ogImage: () => product.value?.imageUrl ?? "/og-image.png",
 });
+
+/* Rich results: Product with per-size Offers + breadcrumbs. Relative
+   image paths are absolutized — crawlers need full URLs. */
+const SITE_URL = "https://massivebarbeque.com";
+const absoluteImage = (src?: string | null) =>
+  src ? (src.startsWith("http") ? src : `${SITE_URL}${src.startsWith("/") ? src : `/${src}`}`) : `${SITE_URL}/og-image.png`;
+
+useSchemaOrg([
+  {
+    "@type": "Product",
+    name: () => product.value?.name ?? "Massive Barbeque food",
+    image: () => [
+      absoluteImage(product.value?.imageUrl),
+      ...((product.value?.images ?? []).map((img: any) => absoluteImage(img.imageUrl))),
+    ],
+    description: () => product.value?.description ?? "Order premium BBQ in Lagos.",
+    brand: { "@type": "Brand", name: "Massive Barbeque" },
+    offers: () =>
+      (product.value?.variants ?? []).map((v: any) => ({
+        "@type": "Offer",
+        name: `${product.value?.name} — ${v.name}`,
+        priceCurrency: "NGN",
+        price: Number(v.price ?? 0),
+        availability: Number(v.inventoryQty ?? 1) > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+        url: `${SITE_URL}/product/${productId.value}`,
+      })),
+  },
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: () =>
+      crumbs.value.map((c: any, i: number) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: c.label,
+        ...(c.to ? { item: `${SITE_URL}${c.to}` } : {}),
+      })),
+  },
+]);
 
 /* Instant add: every selected size goes in as its own cart line in one
    go — the toast fires immediately, the store syncs in the background. */

@@ -4,7 +4,7 @@ import M3Icon from "@/components/M3Icon.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 
 useSeoMeta({
-  title: "Menu | Massive Barbeque",
+  title: "Menu",
   description: "Order BBQ catfish, chicken, turkey, croaker and sides in Lagos. Delivery and pickup available.",
 });
 

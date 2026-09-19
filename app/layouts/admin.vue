@@ -7,6 +7,9 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 
+// Admin console is private — keep it out of the index.
+useSeoMeta({ robots: "noindex, nofollow" });
+
 const route = useRoute();
 
 const title = computed(() => {

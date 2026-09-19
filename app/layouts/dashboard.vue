@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
 
+// Account pages are private — keep them out of the index.
+useSeoMeta({ robots: "noindex, nofollow" });
+
 const route = useRoute();
 
 const tabs = [

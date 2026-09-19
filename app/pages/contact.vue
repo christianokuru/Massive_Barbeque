@@ -1,5 +1,8 @@
 <script setup lang="ts">
-useSeoMeta({ title: "Contact | Massive Barbeque" });
+useSeoMeta({
+  title: "Contact",
+  description: "Reach Massive Barbeque in Lagos — bulk and party orders, catering enquiries and support. Call, WhatsApp or send a message.",
+});
 
 const channels = [
   { label: "Email", value: "info@massivebarbeque.com", href: "mailto:info@massivebarbeque.com" },

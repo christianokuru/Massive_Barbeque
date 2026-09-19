@@ -80,8 +80,8 @@ export default defineNuxtConfig({
         lang: "en",
       },
       link: [
-        { rel: "icon", type: "image/svg+xml", href: "/logo.svg" },
-        { rel: "apple-touch-icon", href: "/logo.svg" },
+        // Favicons owned by app/app.vue (real brand submark) — kept here:
+        // font preconnections + Material Symbols only.
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         {
           rel: "preconnect",
@@ -101,9 +101,11 @@ export default defineNuxtConfig({
     },
   },
 
-  // Robots Configuration
+  // Robots Configuration (private areas stay out of the index;
+  // per-page `robots: noindex` in layouts/pages backs this up)
   robots: {
     allow: "/",
+    disallow: ["/admin", "/dashboard", "/checkout", "/login", "/register", "/forgot-password", "/reset-password"],
     sitemap: "https://massivebarbeque.com/sitemap.xml",
   },
 
@@ -113,6 +115,10 @@ export default defineNuxtConfig({
     // skip the runtime sitemap handlers to shrink the server bundle.
     zeroRuntime: true,
     strictNuxtContentPaths: true,
+    // Product pages come from /api/__sitemap__/urls (fail-soft: empty on
+    // DB error so a Supabase blip never breaks the build). Prerendered
+    // below via nitro.prerender.routes.
+    sources: ["/api/__sitemap__/urls"],
     urls: [
       {
         loc: "/",
@@ -166,7 +172,7 @@ export default defineNuxtConfig({
       type: "Restaurant",
       name: "Massive Barbeque",
       url: "https://massivebarbeque.com",
-      logo: "https://massivebarbeque.com/logo.svg",
+      logo: "https://massivebarbeque.com/images/Food/Logos/Primary.png",
       email: "info@massivebarbeque.com",
       description:
         "Premium BBQ catering in Lagos, Nigeria. Specializing in barbeque catfish, chicken, turkey, croaker, and delicious sides.",
@@ -196,14 +202,15 @@ export default defineNuxtConfig({
     },
   },
 
-  // OG Image Configuration
+  // OG Image Configuration (module defaults — no custom component)
   ogImage: {
     enabled: true,
-    defaults: {
-      component: "OgImage",
-      props: {
-        logo: "/logo.svg",
-      },
+  },
+
+  // Prerender the sitemap product source at build time.
+  nitro: {
+    prerender: {
+      routes: ["/api/__sitemap__/urls"],
     },
   },
 

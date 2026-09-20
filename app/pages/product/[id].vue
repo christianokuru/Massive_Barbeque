@@ -39,16 +39,13 @@ watch(productId, () => {
 
 const variants = computed(() => product.value?.variants ?? []);
 
-/* Order lines: selected variants (qty > 0), clamped to available stock
-   at add time in case stock moved since the page loaded. */
+/* Order lines: selected variants (qty > 0), capped at the cart max.
+   No stock clamp — everything is always available (grilled to order). */
 const lines = computed(() =>
   variants.value
     .map((v: any) => {
       const wanted = Math.max(0, Math.floor(Number(quantities.value[String(v.id)] ?? 0)));
-      const stock = v.inventoryQty === null || v.inventoryQty === undefined || v.inventoryQty === ""
-        ? Number.POSITIVE_INFINITY
-        : Number(v.inventoryQty);
-      return { variant: v, qty: Math.min(wanted, Number.isFinite(stock) ? Math.max(stock, 0) : 99) };
+      return { variant: v, qty: Math.min(wanted, 99) };
     })
     .filter((l) => l.qty > 0),
 );
@@ -142,9 +139,8 @@ useSchemaOrg([
         name: `${product.value?.name} — ${v.name}`,
         priceCurrency: "NGN",
         price: Number(v.price ?? 0),
-        availability: Number(v.inventoryQty ?? 1) > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
+        // Always in stock (grilled to order) — never emit OutOfStock.
+        availability: "https://schema.org/InStock",
         url: `${SITE_URL}/product/${productId.value}`,
       })),
   },

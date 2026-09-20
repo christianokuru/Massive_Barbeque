@@ -179,11 +179,17 @@ see "Test plan" per item. Suggested build order is at the bottom.
 
 ## G. Cross-cutting DB / API defects (need decisions first)
 
-- [ ] **[~] G1. Inventory never decremented.** Stock is check-only;
+- [x] **[~] G1. Inventory never decremented.** Stock is check-only;
   `inventory_qty` moves only by hand-edit. Decide: decrement on webhook-paid
   (idempotent in pending→paid transition) vs documented-manual.
   (`orders.post.ts:108-116`)
   _Test: paid webhook decrements each variant qty once; replay is no-op._
+  **Resolved 2026-09-20 (owner: everything is always in stock, grilled to
+  order).** No decrement, no gate: removed the checkout stock-rejection in
+  `orders.post.ts`, the PDP qty clamp, the VariantPicker sold-out state
+  (pills/steppers now cap at 99 only), and the schema.org OutOfStock branch
+  (always InStock — keeps Rich Results truthful). `inventory_qty` stays in
+  the schema as unused metadata; prices/activeness still validated live.
 - [ ] **G2. Audit-after-write isn't fail-closed.** Order update commits before
   `auditAdminAction`; audit failure leaves a trailless change despite the
   comment. Audit first or compensate. (`[id].status.put.ts:62-74`)

@@ -104,16 +104,10 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Stock check: never sell more than on hand (prevents oversell runs).
-    for (const v of live as any[]) {
-      const wanted = Math.min(99, quantities.get(v.id) ?? 1);
-      if (!Number.isFinite(Number(v.inventory_qty)) || Number(v.inventory_qty) < wanted) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: "Some items in your cart don't have enough stock.",
-        });
-      }
-    }
+    // No stock gate: the kitchen grills to order and everything is always
+    // available (owner decision 2026-09-20). Availability = the variant
+    // exists and is active under an active product (checked above).
+    // inventory_qty remains in the schema as informational metadata only.
 
     const lines = live.map((v: any) => {
       const quantity = Math.min(99, quantities.get(v.id) ?? 1);

@@ -200,6 +200,24 @@ see "Test plan" per item. Suggested build order is at the bottom.
   0001→0005.
   _Test: deploy checklist updated (docs) — verify manually._
 
+## PERF. Request consolidation (added mid-session from network-tab review)
+
+- [x] **PERF1. Session fetched 2–4× per page.** Middleware + every page (+
+  double `fetchIsOwner` on admins.vue/NavMain) each hit `/api/auth/session`.
+  **Fixed 2026-09-20:** middlewares write shared `useAuth` state (SSR
+  serializes via payload); all pages/components read state only. One session
+  call per navigation. Bonus: logout now clears `isOwner` (was sticky).
+  _Test: suite green; verify Network tab shows 1 session call per nav._
+- [x] **PERF2. Home fired 3 data requests + full order dump.** **Fixed
+  2026-09-20:** new `GET /api/admin/overview` (stats + revenue series + 20-row
+  queue, lean columns); customer count extracted to cached
+  `server/utils/customerCount.ts` shared with the count endpoint.
+  _Test: pure mappers (`toOrderRow`, `revenueDeltaFor`, `buildRevenueSeries`)
+  unit-tested; endpoint verified manually._
+- [x] **PERF3. Row mapping duplicated per page.** **Fixed 2026-09-20:**
+  single `toOrderRow()` + single `OrderRow` definition (DataTable
+  re-exports); both admin pages use it.
+
 ## PAY. Payment automation (deferred — needs deploy + provider wiring)
 
 - [ ] **PAY1. Auto-`failed`.** Process provider failure events (and/or expire

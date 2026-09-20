@@ -191,14 +191,14 @@ const columns = columnHelper.columns([
     cell: ({ row }) => h("div", { class: "text-right font-medium tabular-nums" }, formatNaira(Number(row.getValue("total")))),
   }),
   columnHelper.accessor("paymentStatus", {
-    header: "Payment",
+    header: "Payment Status",
     cell: ({ row }) => {
       const status = String(row.getValue("paymentStatus"));
       return h(Badge, { variant: "secondary", class: PAYMENT_BADGE[status] ?? "" }, () => status);
     },
   }),
   columnHelper.accessor("status", {
-    header: "Status",
+    header: "Food Status",
     cell: ({ row }) => {
       const status = String(row.getValue("status"));
       return h(Badge, { variant: "secondary", class: STATUS_BADGE[status] ?? "" }, () => status);

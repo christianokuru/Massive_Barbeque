@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import type { OrderRow } from "@/components/custom/admin/dashboard/DataTable.vue";
 
+// Async like the dashboard home: keeps the heavy table deps (@tanstack)
+// out of the initial bundle.
+const DataTable = defineAsyncComponent(
+  () => import("@/components/custom/admin/dashboard/DataTable.vue")
+);
+
 definePageMeta({ layout: "admin", middleware: "admin" });
 const { user, fetchSession } = useAuth();
 if (process.client) {

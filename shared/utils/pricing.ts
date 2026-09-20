@@ -53,3 +53,16 @@ export function toKobo(naira: string | number): number {
 export function formatNaira(amount: string | number): string {
   return `₦${Math.round(toAmount(amount)).toLocaleString('en-NG')}`;
 }
+
+/**
+ * Week-over-week style percentage change, rounded to whole points.
+ * Returns null when the baseline is 0 (no meaningful delta) — callers
+ * hide the badge instead of showing ±∞.
+ */
+export function pctChange(current: number, previous: number): number | null {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous <= 0) {
+    return null;
+  }
+  if (current === previous) return 0;
+  return Math.round(((current - previous) / previous) * 100);
+}

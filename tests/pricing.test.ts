@@ -6,6 +6,7 @@ import {
   formatNaira,
   lineTotal,
   orderTotals,
+  pctChange,
   toAmount,
   toKobo,
 } from '../shared/utils/pricing';
@@ -92,5 +93,20 @@ describe('formatNaira', () => {
   it('formats with naira sign and thousands separator', () => {
     expect(formatNaira(17100.5)).toBe('₦17,101');
     expect(formatNaira('4500.00')).toBe('₦4,500');
+  });
+});
+
+describe('pctChange (dashboard revenue delta)', () => {
+  it('computes rounded whole-point change', () => {
+    expect(pctChange(110, 100)).toBe(10);
+    expect(pctChange(75, 100)).toBe(-25);
+    expect(pctChange(100, 100)).toBe(0);
+  });
+
+  it('returns null when the baseline is zero or invalid', () => {
+    expect(pctChange(100, 0)).toBe(null);
+    expect(pctChange(0, 0)).toBe(null);
+    expect(pctChange(NaN, 100)).toBe(null);
+    expect(pctChange(100, -50)).toBe(null);
   });
 });

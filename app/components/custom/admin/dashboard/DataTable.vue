@@ -9,6 +9,7 @@ import {
   Columns3,
   EllipsisVertical,
   Eye,
+  Search,
 } from "lucide-vue-next";
 import {
   createColumnHelper,
@@ -18,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -47,6 +49,9 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { features } from "./features";
+import { ORDER_STATUSES, planBulkStatusChange } from "~~/shared/utils/orderStatus";
+import { filterOrderRows } from "~~/shared/utils/orderDisplay";
+import { toast } from "vue-sonner";
 
 export interface OrderRow {
   id: string
@@ -60,8 +65,25 @@ export interface OrderRow {
   createdAt: string
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   orders: OrderRow[]
+  /** Optional heading (e.g. "Needs attention"); empty hides the row. */
+  title?: string
+  /** Status tabs make sense for archives, not for filtered queues. */
+  showTabs?: boolean
+  /** The orders page links to itself — it hides this self-link. */
+  showViewAll?: boolean
+  /** Empty-state copy when no search is active. */
+  emptyText?: string
+}>(), {
+  title: "",
+  showTabs: true,
+  showViewAll: true,
+  emptyText: "No orders yet.",
+});
+
+const emit = defineEmits<{
+  (e: "orders-changed"): void
 }>();
 
 const NuxtLinkComponent = resolveComponent("NuxtLink");
@@ -99,6 +121,7 @@ type OrderTab = "all" | "pending" | "active" | "completed" | "cancelled";
 const ACTIVE_STATUSES = ["confirmed", "preparing", "ready"];
 
 const activeTab = ref<OrderTab>("all");
+const searchQuery = ref("");
 
 const tabCounts = computed<Record<OrderTab, number>>(() => ({
   all: props.orders.length,
@@ -109,18 +132,24 @@ const tabCounts = computed<Record<OrderTab, number>>(() => ({
 }));
 
 const visibleOrders = computed(() => {
+  let base: OrderRow[];
   switch (activeTab.value) {
     case "pending":
-      return props.orders.filter((o) => o.status === "pending");
+      base = props.orders.filter((o) => o.status === "pending");
+      break;
     case "active":
-      return props.orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
+      base = props.orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
+      break;
     case "completed":
-      return props.orders.filter((o) => o.status === "completed");
+      base = props.orders.filter((o) => o.status === "completed");
+      break;
     case "cancelled":
-      return props.orders.filter((o) => o.status === "cancelled");
+      base = props.orders.filter((o) => o.status === "cancelled");
+      break;
     default:
-      return props.orders;
+      base = props.orders;
   }
+  return filterOrderRows(base, searchQuery.value);
 });
 
 const columnHelper = createColumnHelper<typeof features, OrderRow>();
@@ -220,6 +249,53 @@ const table = useTable({
     rowSelection.value = typeof updater === "function" ? updater(rowSelection.value) : updater;
   },
 });
+
+// Bulk status change: previewed with planBulkStatusChange (illegal moves
+// are skipped, never sent), executed as individual audited PUTs so every
+// row keeps its own audit trail. Payment state is untouched (key omitted).
+const bulkTarget = ref<(typeof ORDER_STATUSES)[number]>("confirmed");
+const bulkBusy = ref(false);
+const selectedRows = computed<OrderRow[]>(() =>
+  table.getSelectedRowModel().rows.map((r) => r.original as OrderRow)
+);
+const bulkPlan = computed(() =>
+  planBulkStatusChange(
+    selectedRows.value.map((o) => ({ id: o.id, status: o.status })),
+    bulkTarget.value
+  )
+);
+
+function clearSelection() {
+  rowSelection.value = {};
+}
+
+async function applyBulkStatus() {
+  const { apply, skipped } = bulkPlan.value;
+  if (!apply.length) return;
+  bulkBusy.value = true;
+  let updated = 0;
+  let failed = 0;
+  try {
+    for (const id of apply) {
+      try {
+        await $fetch(`/api/admin/orders/${id}/status`, {
+          method: "PUT",
+          body: { status: bulkTarget.value },
+        });
+        updated += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    if (updated) toast.success(`${updated} order${updated === 1 ? "" : "s"} moved to ${bulkTarget.value}.`);
+    if (failed) toast.error(`${failed} update${failed === 1 ? "" : "s"} failed — they were left untouched.`);
+    if (skipped.length) toast.info(`${skipped.length} selected order${skipped.length === 1 ? "" : "s"} can't move there — skipped.`);
+    clearSelection();
+    emit("orders-changed");
+  } finally {
+    bulkBusy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -227,8 +303,11 @@ const table = useTable({
     v-model="activeTab"
     class="w-full flex-col justify-start gap-6"
   >
+    <div v-if="title" class="flex items-end justify-between px-4 lg:px-6">
+      <h2 class="text-lg font-semibold">{{ title }} <span class="text-sm font-normal text-muted-foreground">({{ orders.length }})</span></h2>
+    </div>
     <div class="flex items-center justify-between px-4 lg:px-6">
-      <TabsList class="**:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
+      <TabsList v-if="showTabs" class="**:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
         <TabsTrigger value="all">
           All <Badge variant="secondary">{{ tabCounts.all }}</Badge>
         </TabsTrigger>
@@ -267,12 +346,43 @@ const table = useTable({
             </template>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button variant="outline" size="sm" as-child>
+        <Button v-if="showViewAll" variant="outline" size="sm" as-child>
           <NuxtLink to="/admin/orders">
             View all orders
           </NuxtLink>
         </Button>
       </div>
+    </div>
+    <div class="px-4 lg:px-6">
+      <div class="relative">
+        <Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <label for="admin-order-search" class="sr-only">Search orders</label>
+        <Input
+          id="admin-order-search"
+          v-model="searchQuery"
+          placeholder="Search order number, customer, email…"
+          class="pl-9"
+        />
+      </div>
+    </div>
+    <div
+      v-if="selectedRows.length"
+      class="mx-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 lg:mx-6"
+    >
+      <span class="text-sm font-medium">{{ selectedRows.length }} selected</span>
+      <label for="admin-bulk-status" class="sr-only">Move selected orders to</label>
+      <select id="admin-bulk-status" v-model="bulkTarget" class="rounded border border-border bg-background px-3 py-1.5 text-sm">
+        <option v-for="s in ORDER_STATUSES" :key="s" :value="s">{{ s }}</option>
+      </select>
+      <Button size="sm" :disabled="!bulkPlan.apply.length || bulkBusy" @click="applyBulkStatus">
+        {{ bulkBusy ? "Updating…" : `Move ${bulkPlan.apply.length} to ${bulkTarget}` }}
+      </Button>
+      <span v-if="bulkPlan.skipped.length" class="text-xs text-muted-foreground">
+        {{ bulkPlan.skipped.length }} can't move there — skipped
+      </span>
+      <button type="button" class="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground hover:underline" @click="clearSelection">
+        Clear
+      </button>
     </div>
     <div
       class="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
@@ -303,7 +413,7 @@ const table = useTable({
                 :colspan="columns.length"
                 class="h-24 text-center"
               >
-                No orders yet.
+                {{ searchQuery ? "No orders match your search." : emptyText }}
               </TableCell>
             </TableRow>
           </TableBody>

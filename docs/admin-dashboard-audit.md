@@ -28,33 +28,47 @@ see "Test plan" per item. Suggested build order is at the bottom.
   `admin/orders/[id].vue:8`, `admin/admins.vue:9`.
   _Test: middleware test — guest navigating `/admin/*` lands `/admin/login`;
   non-admin lands `/`._
-- [ ] **A2. `activeProducts` stat caps at 50.** Counts via public
+- [x] **A2. `activeProducts` stat caps at 50.** Counts via public
   `GET /api/products` (limit-clamped, active-only). Derive from the admin
   product list or a count endpoint instead. (`admin/index.vue:30-32`)
   _Test: seed 60 active products, stat reads 60._
-- [ ] **A3. DataTable tabs count a 50-order slice.** `recentOrders` slices 50,
+  **Fixed 2026-09-20:** dashboard now reads `/api/admin/products`
+  (unbounded, includes inactive) and counts `isActive !== false`.
+- [x] **A3. DataTable tabs count a 50-order slice.** `recentOrders` slices 50,
   tab badges present as totals. Pass full list or relabel.
   (`admin/index.vue:65-77` + `DataTable.vue:103-109`)
   _Test: seed >50 orders across statuses, tab counts match DB._
+  **Fixed 2026-09-20:** full order list passed as `orderRows`; tabs count the
+  whole dataset (client pagination absorbs volume until G4 server paging).
 - [ ] **A4. Unbounded full-table fetch for stats.** `GET /api/admin/orders`
   selects all rows; revenue/counts computed client-side. Add server pagination
   + aggregate endpoint before scale hurts.
   _Test: endpoint accepts `limit/offset`, returns `total`._
-- [ ] **A5. Dead `revenueDeltaPct` badge.** Always `null`; compute WoW/MoM or
+- [x] **A5. Dead `revenueDeltaPct` badge.** Always `null`; compute WoW/MoM or
   remove the prop. (`admin/index.vue:46`, `SectionCards.vue:40-45`)
   _Test: delta math unit test in `shared/utils/` if computed._
+  **Fixed 2026-09-20:** real week-over-week paid-revenue delta via new pure
+  `pctChange()` in `shared/utils/pricing.ts` (null when baseline is 0, badge
+  hides); 4 tests in `tests/pricing.test.ts`.
 - [ ] **A6. Revenue ignores cancels/refunds.** Paid-then-cancelled orders still
   sum into revenue. Decide netting rule.
   _Test: paid+cancelled order excluded (or included) per rule._
 
 ## B. Admin DataTable (`dashboard/DataTable.vue`)
 
-- [ ] **B1. Selection checkboxes with no bulk action.** Add bulk status update
+- [x] **B1. Selection checkboxes with no bulk action.** Add bulk status update
   or remove the select column. (`DataTable.vue:129-143,313-315`)
   _Test: bulk transition respects `canTransitionOrder`; illegal rows skipped._
-- [ ] **B2. No order search.** Add search by order number / customer / email
+  **Fixed 2026-09-20:** bulk bar appears on selection — target select,
+  live applicable count, Apply runs individual audited PUTs (payment untouched),
+  skipped/failed reported via toasts, selection clears + table refreshes.
+  Pure `planBulkStatusChange()` in `shared/utils/orderStatus.ts` + 3 tests.
+- [x] **B2. No order search.** Add search by order number / customer / email
   (filtering feature already registered in `features.ts`).
   _Test: query filters rows; empty-result state renders._
+  **Fixed 2026-09-20:** full-width search (number/name/email, case-insensitive)
+  via pure `filterOrderRows()` in `shared/utils/orderDisplay.ts` + 3 tests;
+  empty state reads "No orders match your search." when filtering.
 - (Known, do-not-fix: last-page icon uses `ChevronRight`; `Button` dead
   `asChild` prop.)
 
@@ -242,3 +256,8 @@ see "Test plan" per item. Suggested build order is at the bottom.
   identical latent bug). Pure renames, zero content change.
   _Verify: click View on any order → detail renders (restart `nuxt dev`
   first to flush the stale route table)._
+- 2026-09-20: home/archive split (user feedback: home table duplicated
+  /admin/orders). Home shows the action queue only (`needsAttentionRows`,
+  capped 20, tabs hidden, "All clear" empty state); `/admin/orders` hosts the
+  full DataTable (tabs/search/bulk, self-link hidden); plain `OrderTable.vue`
+  retired. `ATTENTION_STATUSES` + `needsAttentionRows()` tested.

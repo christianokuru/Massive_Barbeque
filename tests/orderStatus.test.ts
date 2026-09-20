@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_EDITABLE_PAYMENT_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, legalNextStatuses } from '../shared/utils/orderStatus';
+import { ADMIN_EDITABLE_PAYMENT_STATUSES, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
 
 describe('status enums (Batch 5 contract)', () => {
   it('matches the statuses enforced by the admin API', () => {
@@ -79,5 +79,39 @@ describe('ADMIN_EDITABLE_PAYMENT_STATUSES (paid is webhook-only)', () => {
       [...PAYMENT_STATUSES].filter((s) => s !== 'paid').sort(),
     );
     expect(ADMIN_EDITABLE_PAYMENT_STATUSES).not.toContain('paid');
+  });
+});
+
+describe('planBulkStatusChange', () => {
+  const rows = [
+    { id: 'a', status: 'pending' },
+    { id: 'b', status: 'confirmed' },
+    { id: 'c', status: 'completed' },
+  ];
+
+  it('applies legal moves and skips the rest', () => {
+    expect(planBulkStatusChange(rows, 'cancelled')).toEqual({
+      apply: ['a', 'b'],
+      skipped: ['c'],
+    });
+  });
+
+  it('treats re-saving the current state as applicable', () => {
+    expect(planBulkStatusChange(rows, 'pending')).toEqual({
+      apply: ['a'],
+      skipped: ['b', 'c'],
+    });
+  });
+
+  it('handles empty input', () => {
+    expect(planBulkStatusChange([], 'confirmed')).toEqual({ apply: [], skipped: [] });
+  });
+});
+
+describe('ATTENTION_STATUSES', () => {
+  it('covers every non-terminal state and nothing terminal', () => {
+    expect([...ATTENTION_STATUSES].sort()).toEqual(
+      [...ORDER_STATUSES].filter((s) => s !== 'completed' && s !== 'cancelled').sort(),
+    );
   });
 });

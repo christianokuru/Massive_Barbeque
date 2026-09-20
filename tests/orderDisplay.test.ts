@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deliveryAddressLines, formatOrderDateTime } from '../shared/utils/orderDisplay';
+import { deliveryAddressLines, filterOrderRows, formatOrderDateTime, needsAttentionRows } from '../shared/utils/orderDisplay';
 
 describe('deliveryAddressLines', () => {
   it('renders a full snake_case address in order', () => {
@@ -56,5 +56,45 @@ describe('formatOrderDateTime', () => {
     expect(formatOrderDateTime(null)).toBe('—');
     expect(formatOrderDateTime(undefined)).toBe('—');
     expect(formatOrderDateTime('not-a-date')).toBe('—');
+  });
+});
+
+describe('filterOrderRows', () => {
+  const rows = [
+    { orderNumber: 'MB20884485', customerName: 'Ada Obi', customerEmail: 'ada@example.com' },
+    { orderNumber: 'MB20884486', customerName: 'Tunde', customerEmail: 'tunde@example.com' },
+  ];
+
+  it('returns everything on blank query', () => {
+    expect(filterOrderRows(rows, '  ')).toEqual(rows);
+  });
+
+  it('matches order number, name, and email case-insensitively', () => {
+    expect(filterOrderRows(rows, 'mb20884485')).toHaveLength(1);
+    expect(filterOrderRows(rows, 'ADA')).toHaveLength(1);
+    expect(filterOrderRows(rows, 'tunde@example')).toHaveLength(1);
+  });
+
+  it('returns [] when nothing matches', () => {
+    expect(filterOrderRows(rows, 'zzz')).toEqual([]);
+  });
+});
+
+describe('needsAttentionRows', () => {
+  const rows = [
+    { id: 'a', status: 'pending' },
+    { id: 'b', status: 'preparing' },
+    { id: 'c', status: 'completed' },
+    { id: 'd', status: 'cancelled' },
+    { id: 'e', status: 'ready' },
+  ];
+  const statuses = ['pending', 'confirmed', 'preparing', 'ready'];
+
+  it('keeps actionable orders and drops terminal ones', () => {
+    expect(needsAttentionRows(rows, statuses).map((r) => r.id)).toEqual(['a', 'b', 'e']);
+  });
+
+  it('caps the queue at the limit', () => {
+    expect(needsAttentionRows(rows, statuses, 2).map((r) => r.id)).toEqual(['a', 'b']);
   });
 });

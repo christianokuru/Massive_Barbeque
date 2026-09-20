@@ -53,3 +53,29 @@ export function legalNextStatuses(from: OrderStatus): readonly OrderStatus[] {
 export const ADMIN_EDITABLE_PAYMENT_STATUSES = ['pending', 'failed', 'refunded'] as const;
 
 export type AdminEditablePaymentStatus = (typeof ADMIN_EDITABLE_PAYMENT_STATUSES)[number];
+
+/**
+ * Split a bulk status change into orders that may legally move to `target`
+ * and orders that must be skipped. Pure so the console can preview counts
+ * before sending anything — the server still re-validates every row.
+ */
+export function planBulkStatusChange(
+  rows: Array<{ id: string; status: string }>,
+  target: OrderStatus,
+): { apply: string[]; skipped: string[] } {
+  const apply: string[] = [];
+  const skipped: string[] = [];
+  for (const row of rows) {
+    if (canTransitionOrder(row.status as OrderStatus, target)) apply.push(row.id);
+    else skipped.push(row.id);
+  }
+  return { apply, skipped };
+}
+
+/** States that need kitchen attention (everything not terminal). */
+export const ATTENTION_STATUSES: readonly string[] = [
+  'pending',
+  'confirmed',
+  'preparing',
+  'ready',
+];

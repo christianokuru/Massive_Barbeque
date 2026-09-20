@@ -28,3 +28,37 @@ export function formatOrderDateTime(iso: string | null | undefined): string {
     minute: "2-digit",
   });
 }
+
+export interface OrderSearchRow {
+  orderNumber?: string | null
+  customerName?: string | null
+  customerEmail?: string | null
+}
+
+/** Case-insensitive match across order number, customer name and email. */
+export function filterOrderRows<T extends OrderSearchRow>(rows: T[], query: string): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((r) =>
+    [r.orderNumber, r.customerName, r.customerEmail].some((v) =>
+      (v ?? "").toLowerCase().includes(q),
+    ),
+  );
+}
+
+export interface AttentionRow {
+  status?: string | null
+}
+
+/**
+ * Orders needing kitchen action right now (pending + in-progress),
+ * newest first assumption left to the caller — capped so the dashboard
+ * home stays a glanceable queue, never an archive.
+ */
+export function needsAttentionRows<T extends AttentionRow>(
+  rows: T[],
+  statuses: readonly string[],
+  limit = 20,
+): T[] {
+  return rows.filter((r) => statuses.includes(r.status ?? "")).slice(0, limit);
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
+import { deliveryAddressLines } from "~~/shared/utils/orderDisplay";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
 // Guarded by middleware (server-safe via /api/auth/session) — no in-page
@@ -33,19 +34,9 @@ function formatDateTime(iso: string) {
   });
 }
 
-// delivery_address is stored raw (snake_case) — see orders.post.ts.
-const address = computed(() => order.value?.deliveryAddress ?? null);
-const addressLines = computed(() => {
-  if (!address.value) return [];
-  const a = address.value;
-  return [
-    [a.first_name, a.last_name].filter(Boolean).join(" "),
-    a.address_line_1,
-    a.address_line_2,
-    [a.city, a.state].filter(Boolean).join(", "),
-    a.phone,
-  ].filter(Boolean);
-});
+// delivery_address is stored raw (snake_case) — parsed in one place,
+// see shared/utils/orderDisplay.ts.
+const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAddress));
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder } from '../shared/utils/orderStatus';
+import { ADMIN_EDITABLE_PAYMENT_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, legalNextStatuses } from '../shared/utils/orderStatus';
 
 describe('status enums (Batch 5 contract)', () => {
   it('matches the statuses enforced by the admin API', () => {
@@ -50,5 +50,34 @@ describe('canTransitionOrder', () => {
     for (const s of ORDER_STATUSES) {
       expect(canTransitionOrder(s, s)).toBe(true);
     }
+  });
+});
+
+describe('legalNextStatuses (admin dropdown source)', () => {
+  it('returns exactly the transitions canTransitionOrder allows', () => {
+    for (const from of ORDER_STATUSES) {
+      const expected = ORDER_STATUSES.filter((to) => canTransitionOrder(from, to));
+      expect([...legalNextStatuses(from)].sort()).toEqual([...expected].sort());
+    }
+  });
+
+  it('always includes the current status (re-save is legal)', () => {
+    for (const s of ORDER_STATUSES) {
+      expect(legalNextStatuses(s)).toContain(s);
+    }
+  });
+
+  it('offers no escape from terminal states', () => {
+    expect(legalNextStatuses('completed')).toEqual(['completed']);
+    expect(legalNextStatuses('cancelled')).toEqual(['cancelled']);
+  });
+});
+
+describe('ADMIN_EDITABLE_PAYMENT_STATUSES (paid is webhook-only)', () => {
+  it('excludes paid but keeps every other payment state', () => {
+    expect([...ADMIN_EDITABLE_PAYMENT_STATUSES].sort()).toEqual(
+      [...PAYMENT_STATUSES].filter((s) => s !== 'paid').sort(),
+    );
+    expect(ADMIN_EDITABLE_PAYMENT_STATUSES).not.toContain('paid');
   });
 });

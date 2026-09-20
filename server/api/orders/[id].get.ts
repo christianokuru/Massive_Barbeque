@@ -27,9 +27,11 @@ export default defineEventHandler(async (event) => {
     }
 
     const supabase = getServiceSupabase();
+    // Payments included for the admin console's payment references
+    // (additive — list/total shapes elsewhere are untouched).
     const { data: order, error } = await supabase
       .from("orders")
-      .select("*, order_items(*)")
+      .select("*, order_items(*), payments(*)")
       .eq("id", orderId)
       .single();
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireAdmin } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
-import { canTransitionOrder } from "~~/shared/utils/orderStatus";
+import { ADMIN_EDITABLE_PAYMENT_STATUSES, canTransitionOrder } from "~~/shared/utils/orderStatus";
 import { auditAdminAction } from "~~/server/utils/adminGovernance";
 import { getClientIp } from "~~/server/utils/clientIp";
 
@@ -26,8 +26,9 @@ export default defineEventHandler(async (event) => {
     const body = await readValidatedBody(event, orderStatusSchema.parse);
 
     // `paid` is webhook-only: no admin (or compromised admin session)
-    // may mint it by hand.
-    if (body.paymentStatus === "paid") {
+    // may mint it by hand. The editable set is defined once in
+    // shared/utils/orderStatus.ts so UI and API can't drift apart.
+    if (body.paymentStatus && !(ADMIN_EDITABLE_PAYMENT_STATUSES as readonly string[]).includes(body.paymentStatus)) {
       throw createError({
         statusCode: 400,
         statusMessage: "Paid status is set by payment webhooks only.",

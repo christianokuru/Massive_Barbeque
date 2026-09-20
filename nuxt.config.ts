@@ -208,14 +208,11 @@ export default defineNuxtConfig({
     enabled: true,
   },
 
-  // Prerender the sitemap product source AND the sitemap itself at build
-  // time (`zeroRuntime` registers no runtime handler, so /sitemap.xml must
-  // exist as a static file or it 500s in production).
-  nitro: {
-    prerender: {
-      routes: ["/api/__sitemap__/urls", "/sitemap.xml"],
-    },
-  },
+  // NOTE: neither /sitemap.xml nor /api/__sitemap__/urls may go in
+  // nitro.prerender.routes. The sitemap module treats a prerendered
+  // sitemap route as "prerender mode" and bakes EMPTY runtime sources
+  // (plus a prerendered API route would serve stale product JSON).
+  // Everything sitemap-related resolves live at request time.
 
   // Security headers (defense in depth; app-level auth is enforced
   // in server routes + route middleware, not by these alone).

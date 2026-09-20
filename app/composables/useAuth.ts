@@ -47,6 +47,8 @@ export function useAuth() {
   async function logout() {
     await $fetch("/api/auth/logout", { method: "POST" });
     user.value = null;
+    // Fail closed: ownership must never survive the session it came with.
+    isOwner.value = false;
     await navigateTo("/");
   }
 

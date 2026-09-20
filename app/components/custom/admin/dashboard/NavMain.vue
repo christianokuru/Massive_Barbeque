@@ -18,11 +18,8 @@ interface NavItem {
 
 const route = useRoute();
 const { openCreate } = useAdminProducts();
-const { isOwner, fetchIsOwner } = useAuth();
-
-onMounted(() => {
-  fetchIsOwner();
-});
+// Ownership is populated once per navigation by the admin middleware.
+const { isOwner } = useAuth();
 
 const items = computed<NavItem[]>(() => [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },

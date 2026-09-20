@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deliveryAddressLines, filterOrderRows, formatOrderDateTime, needsAttentionRows } from '../shared/utils/orderDisplay';
+import { buildRevenueSeries, deliveryAddressLines, filterOrderRows, formatOrderDateTime, needsAttentionRows, revenueDeltaFor, toOrderRow } from '../shared/utils/orderDisplay';
 
 describe('deliveryAddressLines', () => {
   it('renders a full snake_case address in order', () => {
@@ -96,5 +96,84 @@ describe('needsAttentionRows', () => {
 
   it('caps the queue at the limit', () => {
     expect(needsAttentionRows(rows, statuses, 2).map((r) => r.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('toOrderRow', () => {
+  it('maps a full order', () => {
+    expect(
+      toOrderRow({
+        id: 'abc12345-uuid',
+        orderNumber: 'MB20884485',
+        customerName: 'Ada Obi',
+        customerEmail: 'ada@example.com',
+        items: [{ quantity: 2 }, { quantity: 1 }],
+        total: '15000.00',
+        status: 'confirmed',
+        paymentStatus: 'paid',
+        createdAt: '2026-09-16T01:08:07Z',
+      }),
+    ).toEqual({
+      id: 'abc12345-uuid',
+      orderNumber: 'MB20884485',
+      customerName: 'Ada Obi',
+      customerEmail: 'ada@example.com',
+      itemCount: 3,
+      total: 15000,
+      status: 'confirmed',
+      paymentStatus: 'paid',
+      createdAt: '2026-09-16T01:08:07Z',
+    });
+  });
+
+  it('falls back safely on missing data', () => {
+    expect(toOrderRow({ id: 'x' })).toMatchObject({
+      id: 'x',
+      customerName: 'Guest',
+      customerEmail: '',
+      itemCount: 0,
+      total: 0,
+      status: 'pending',
+      paymentStatus: 'pending',
+    });
+  });
+});
+
+describe('revenueDeltaFor', () => {
+  const now = new Date('2026-09-20T12:00:00Z').getTime();
+  const day = 24 * 60 * 60 * 1000;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const paid = (total: number, at: number) => ({ paymentStatus: 'paid', total, createdAt: iso(at) });
+
+  it('compares this week against last week', () => {
+    const orders = [paid(110, now - day), paid(100, now - 8 * day)];
+    expect(revenueDeltaFor(orders, now)).toBe(10);
+  });
+
+  it('returns null with no baseline week', () => {
+    expect(revenueDeltaFor([paid(50, now - day)], now)).toBe(null);
+  });
+
+  it('ignores unpaid and dateless rows', () => {
+    const orders = [
+      { paymentStatus: 'pending', total: 99999, createdAt: iso(now - day) },
+      paid(100, now - day),
+      paid(100, now - 8 * day),
+    ];
+    expect(revenueDeltaFor(orders, now)).toBe(0);
+  });
+});
+
+describe('buildRevenueSeries', () => {
+  it('groups paid revenue by UTC day, oldest first', () => {
+    const series = buildRevenueSeries([
+      { paymentStatus: 'paid', total: '5000.00', createdAt: '2026-09-16T23:00:00Z' },
+      { paymentStatus: 'paid', total: 3000, createdAt: '2026-09-15T01:00:00Z' },
+      { paymentStatus: 'pending', total: 99999, createdAt: '2026-09-15T02:00:00Z' },
+    ]);
+    expect(series).toEqual([
+      { date: '2026-09-15', revenue: 3000 },
+      { date: '2026-09-16', revenue: 5000 },
+    ]);
   });
 });

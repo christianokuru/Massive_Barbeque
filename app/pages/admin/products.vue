@@ -6,11 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 definePageMeta({ layout: "admin", middleware: "admin" });
 
-const { user, fetchSession } = useAuth();
-if (process.client) {
-  await fetchSession();
-  if (!user.value) await navigateTo("/login");
-}
+// Session comes from the admin middleware (single-flight) — no fetch here.
 
 const { products, pending, fetchProducts, openCreate } = useAdminProducts();
 const requestHeaders = useRequestHeaders(["cookie"]);

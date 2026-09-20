@@ -3,10 +3,10 @@ import M3Icon from "@/components/M3Icon.vue";
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
-// Guarded by middleware (server-safe via /api/auth/session). Session refresh
-// is client-only: $supabase comes from a .client.ts plugin (undefined on SSR).
-const { displayName, fetchSession } = useAuth();
-if (process.client) await fetchSession();
+// Guarded by middleware (server-safe via /api/auth/session), which also
+// populates the shared session state — no fetch here.
+// Note: $supabase comes from a .client.ts plugin (undefined on SSR).
+const { displayName } = useAuth();
 
 const { data: orders } = await useAsyncData("dashboard-orders", () =>
   $fetch<{ orders: any[] }>("/api/orders", { headers: useRequestHeaders(["cookie"]) }).then((r) => r.orders).catch(() => [])

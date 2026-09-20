@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrderRow } from "@/components/custom/admin/dashboard/DataTable.vue";
+import { toOrderRow } from "~~/shared/utils/orderDisplay";
 
 // Async like the dashboard home: keeps the heavy table deps (@tanstack)
 // out of the initial bundle.
@@ -8,11 +9,8 @@ const DataTable = defineAsyncComponent(
 );
 
 definePageMeta({ layout: "admin", middleware: "admin" });
-const { user, fetchSession } = useAuth();
-if (process.client) {
-  await fetchSession();
-  if (!user.value) await navigateTo("/login");
-}
+
+// Session comes from the admin middleware (single-flight) — no fetch here.
 const requestHeaders = useRequestHeaders(["cookie"]);
 // Full archive: tabs, search, and bulk actions live here.
 // The dashboard home shows only the action queue.
@@ -21,17 +19,7 @@ const { data: ordersData, refresh: refreshOrders } = await useAsyncData("admin-o
 );
 
 const orderRows = computed<OrderRow[]>(() =>
-  (ordersData.value ?? []).map((o) => ({
-    id: String(o.id),
-    orderNumber: o.orderNumber || `#${String(o.id).slice(0, 8).toUpperCase()}`,
-    customerName: o.customerName || "Guest",
-    customerEmail: o.customerEmail || "",
-    itemCount: Array.isArray(o.items) ? o.items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0) : 0,
-    total: Number(o.total || 0),
-    status: o.status || "pending",
-    paymentStatus: o.paymentStatus || "pending",
-    createdAt: o.createdAt,
-  }))
+  (ordersData.value ?? []).map(toOrderRow)
 );
 </script>
 

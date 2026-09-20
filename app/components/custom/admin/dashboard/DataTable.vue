@@ -51,19 +51,11 @@ import {
 import { features } from "./features";
 import { ORDER_STATUSES, planBulkStatusChange } from "~~/shared/utils/orderStatus";
 import { filterOrderRows } from "~~/shared/utils/orderDisplay";
+import type { OrderRow } from "~~/shared/utils/orderDisplay";
 import { toast } from "vue-sonner";
 
-export interface OrderRow {
-  id: string
-  orderNumber: string
-  customerName: string
-  customerEmail: string
-  itemCount: number
-  total: number
-  status: string
-  paymentStatus: string
-  createdAt: string
-}
+// Re-exported so row producers/consumers share one definition.
+export type { OrderRow };
 
 const props = withDefaults(defineProps<{
   orders: OrderRow[]

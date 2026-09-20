@@ -6,11 +6,7 @@ import { deliveryAddressLines, formatOrderDateTime } from "~~/shared/utils/order
 import { formatNaira } from "~~/shared/utils/pricing";
 definePageMeta({ layout: "admin", middleware: "admin" });
 const route = useRoute();
-const { user, fetchSession } = useAuth();
-if (process.client) {
-  await fetchSession();
-  if (!user.value) await navigateTo("/login");
-}
+// Session comes from the admin middleware (single-flight) — no fetch here.
 const requestHeaders = useRequestHeaders(["cookie"]);
 const { data: order, refresh } = await useAsyncData(`admin-order-${route.params.id}`, () =>
   $fetch<{ order: any }>(`/api/orders/${route.params.id}`, { headers: requestHeaders }).then((r) => r.order).catch(() => null)

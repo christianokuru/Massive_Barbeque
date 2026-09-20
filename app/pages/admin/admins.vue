@@ -3,12 +3,8 @@ import { toast } from "vue-sonner";
 
 definePageMeta({ layout: "admin", middleware: "admin" });
 
-const { user, fetchSession, fetchIsOwner, isOwner } = useAuth();
-if (process.client) {
-  await fetchSession();
-  if (!user.value) await navigateTo("/login");
-  await fetchIsOwner();
-}
+const { user } = useAuth();
+// Session + ownership come from the admin middleware (single-flight).
 
 interface AdminRow {
   id: string;

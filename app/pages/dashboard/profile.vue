@@ -3,11 +3,8 @@ import M3Icon from "@/components/M3Icon.vue";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
-const { user, displayName, fetchSession, logout } = useAuth();
-if (process.client) {
-  await fetchSession();
-  if (!user.value) await navigateTo("/login");
-}
+// Session comes from the auth middleware (single-flight) — no fetch here.
+const { user, displayName, logout } = useAuth();
 
 const initials = computed(() => {
   const name = displayName.value || "?";

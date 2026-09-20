@@ -79,3 +79,14 @@ export const ATTENTION_STATUSES: readonly string[] = [
   'preparing',
   'ready',
 ];
+
+/** Terminal states: webhooks must never move an order out of these. */
+export const TERMINAL_ORDER_STATUSES = ['completed', 'cancelled'] as const;
+
+/** Is this status terminal (completed/cancelled)? Unknown values → false. */
+export function isTerminalOrderStatus(status: unknown): boolean {
+  return (
+    typeof status === "string" &&
+    (TERMINAL_ORDER_STATUSES as readonly string[]).includes(status)
+  );
+}

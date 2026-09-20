@@ -97,9 +97,13 @@ see "Test plan" per item. Suggested build order is at the bottom.
   `shared/utils/orderDisplay.ts` + `tests/orderDisplay.test.ts` (5 tests).
   `GET /api/orders/:id` now also selects `payments(*)` (additive).
   Customer detail page refactored onto the same helper (output unchanged).
-- [ ] **C3. `refunded`/`failed` is record-only.** No provider refund call
+- [x] **C3. `refunded`/`failed` is record-only.** No provider refund call
   exists. Label as record-only + confirm, or integrate provider refunds.
   _Test: copy asserts record-only; or refund endpoint mocked per provider._
+  **Fixed 2026-09-20 (label + confirm path):** selecting `refunded` now
+  requires a second confirming click with an explicit "refund the money at
+  the provider first" toast; page copy already states record-only. Full
+  provider-refund automation stays in PAY2.
 - [ ] **C4. Audit is write-only.** No per-order history, no audit viewer.
   Surface `admin_audit_log` for the order (actor, action, time).
   _Test: status change appears in order history UI._
@@ -190,14 +194,21 @@ see "Test plan" per item. Suggested build order is at the bottom.
   (pills/steppers now cap at 99 only), and the schema.org OutOfStock branch
   (always InStock — keeps Rich Results truthful). `inventory_qty` stays in
   the schema as unused metadata; prices/activeness still validated live.
-- [ ] **G2. Audit-after-write isn't fail-closed.** Order update commits before
+- [x] **G2. Audit-after-write isn't fail-closed.** Order update commits before
   `auditAdminAction`; audit failure leaves a trailless change despite the
   comment. Audit first or compensate. (`[id].status.put.ts:62-74`)
   _Test: audit write failure → 500 AND status unchanged._
-- [ ] **G3. Webhook resurrects terminal orders.** Late `charge.success` flips
+  **Fixed 2026-09-20:** audit row now writes BEFORE the order update — an
+  audit failure 500s with the order untouched. Verified by code path
+  (endpoint needs DB; covered manually) + suite 92/92.
+- [x] **G3. Webhook resurrects terminal orders.** Late `charge.success` flips
   `cancelled`/`completed` back to `confirmed`. Gate on non-terminal status
   (both providers). (`webhooks/paystack.post.ts:128-135` + flutterwave twin)
   _Test: webhook on cancelled order leaves status, logs, still acks._
+  **Fixed 2026-09-20:** both webhooks select order `status` and branch on
+  shared `isTerminalOrderStatus()` (tested): payment row still records paid
+  (money truth), order state untouched, loud log flags refund review. Still
+  acks 200 so providers don't retry-storm.
 - [ ] **G4. Admin list endpoints unpaginated.** Add `limit/offset` (+ `total`)
   to admin orders + products GET.
   _Test: pagination params honored; default bounded._

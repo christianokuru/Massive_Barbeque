@@ -60,19 +60,23 @@ export default defineEventHandler(async (event) => {
       updateData.payment_status = body.paymentStatus;
     }
 
-    const { error: updateError } = await supabase
-      .from("orders")
-      .update(updateData)
-      .eq("id", orderId);
-    if (updateError) throw updateError;
-
-    // Audited, fail-closed: a status change without a trail is a 500.
+    // Fail-closed ordering: the audit row is written BEFORE the state
+    // change. If auditing throws, this handler 500s with the order
+    // untouched — a status change without a trail can never commit.
+    // (The reverse — a trail for a write that then fails — is the safe
+    // direction: it records intent, never a silent change.)
     await auditAdminAction(
       user.email || null,
       "status_change",
       orderId,
       getClientIp(event)
     );
+
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update(updateData)
+      .eq("id", orderId);
+    if (updateError) throw updateError;
 
     const { data: order, error } = await supabase
       .from("orders")

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_EDITABLE_PAYMENT_STATUSES, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
+import { ADMIN_EDITABLE_PAYMENT_STATUSES, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, isTerminalOrderStatus, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
 
 describe('status enums (Batch 5 contract)', () => {
   it('matches the statuses enforced by the admin API', () => {
@@ -113,5 +113,21 @@ describe('ATTENTION_STATUSES', () => {
     expect([...ATTENTION_STATUSES].sort()).toEqual(
       [...ORDER_STATUSES].filter((s) => s !== 'completed' && s !== 'cancelled').sort(),
     );
+  });
+});
+
+describe('isTerminalOrderStatus', () => {
+  it('flags completed and cancelled only', () => {
+    expect(isTerminalOrderStatus('completed')).toBe(true);
+    expect(isTerminalOrderStatus('cancelled')).toBe(true);
+    for (const s of ['pending', 'confirmed', 'preparing', 'ready']) {
+      expect(isTerminalOrderStatus(s)).toBe(false);
+    }
+  });
+
+  it('treats unknown values as non-terminal', () => {
+    expect(isTerminalOrderStatus(undefined)).toBe(false);
+    expect(isTerminalOrderStatus(null)).toBe(false);
+    expect(isTerminalOrderStatus('refunded')).toBe(false);
   });
 });

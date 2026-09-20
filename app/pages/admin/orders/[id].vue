@@ -14,6 +14,9 @@ const { data: order, refresh } = await useAsyncData(`admin-order-${route.params.
 const status = ref("confirmed");
 const paymentStatus = ref("paid");
 const saving = ref(false);
+// Record-only refund needs an explicit second click — setting `refunded`
+// relabels the row only; the money moves at the payment provider.
+const confirmRefund = ref(false);
 
 // Dropdowns derive from the shared pipeline truth — the server enforces
 // the same lists, so an option shown here can never 400 there. Falls back
@@ -38,9 +41,22 @@ watchEffect(() => {
   if (order.value) {
     status.value = order.value.status;
     paymentStatus.value = order.value.paymentStatus;
+    confirmRefund.value = false;
   }
 });
+watch(paymentStatus, () => {
+  confirmRefund.value = false;
+});
 async function save() {
+  if (
+    paymentStatus.value === "refunded" &&
+    order.value?.paymentStatus !== "refunded" &&
+    !confirmRefund.value
+  ) {
+    confirmRefund.value = true;
+    toast.info("Refunded here is record-only — refund the money at Paystack/Flutterwave first, then click again to confirm.");
+    return;
+  }
   saving.value = true;
   try {
     await $fetch(`/api/admin/orders/${route.params.id}/status`, {
@@ -165,7 +181,7 @@ async function save() {
               <option v-for="p in paymentOptions" :key="p" :value="p">{{ p }}</option>
             </select>
           </div>
-          <button :disabled="saving" class="rounded bg-primary px-5 py-2 text-sm text-primary-foreground disabled:opacity-50" @click="save">{{ saving ? "Saving…" : "Update status" }}</button>
+          <button :disabled="saving" class="rounded bg-primary px-5 py-2 text-sm text-primary-foreground disabled:opacity-50" @click="save">{{ saving ? "Saving…" : confirmRefund ? "Confirm record-only refund" : "Update status" }}</button>
         </div>
         <p v-if="paymentLocked" class="mt-2 text-xs text-muted-foreground">Paid is set by payment webhooks only — recording a refund happens with your payment provider, not here.</p>
       </section>

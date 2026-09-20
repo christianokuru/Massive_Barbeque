@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { getServiceSupabase } from "~~/server/utils/supabase";
+import { isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
 
@@ -74,7 +75,7 @@ export default defineEventHandler(async (event) => {
         // (Paystack reports kobo). Mismatches are logged, not retried.
         const { data: order } = await supabase
           .from("orders")
-          .select("id, total")
+          .select("id, total, status")
           .eq("id", payment.order_id)
           .single();
         const expectedKobo = order ? Math.round(Number(order.total) * 100) : NaN;
@@ -124,6 +125,17 @@ export default defineEventHandler(async (event) => {
             updated_at: new Date().toISOString(),
           })
           .eq("reference", paymentData.reference);
+
+        // Terminal guard: money truthfully records paid, but a late
+        // payment must never resurrect a completed/cancelled order.
+        // payment_status=paid on a cancelled order is the refund-review
+        // signal for ops — the kitchen state stays untouched.
+        if (isTerminalOrderStatus((order as any)?.status)) {
+          console.error(
+            `Paystack late payment for terminal order ${payment.order_id} (${(order as any)?.status}): payment recorded, order state untouched — review for refund.`
+          );
+          return { success: true };
+        }
 
         await supabase
           .from("orders")

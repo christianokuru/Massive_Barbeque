@@ -8,6 +8,7 @@ export interface OrderAccessRow {
   total: string | number;
   payment_method: string;
   payment_status: string;
+  status: string;
 }
 
 // Ownership gate for anything order-scoped (pay init/verify, receipts).
@@ -22,7 +23,7 @@ export async function assertOrderAccess(
   const supabase = getServiceSupabase();
   const { data: order } = await supabase
     .from("orders")
-    .select("id, user_id, customer_email, total, payment_method, payment_status")
+    .select("id, user_id, customer_email, total, payment_method, payment_status, status")
     .eq("id", orderId)
     .maybeSingle();
   if (!order) {

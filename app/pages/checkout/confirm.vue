@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
+import { guestTokenForOrder as guestTokenFor } from "@/utils/guestOrderToken";
 
 useSeoMeta({ title: "Order confirmation", robots: "noindex, nofollow" });
 
@@ -18,14 +19,7 @@ const order = ref<any>(null);
 // Guest proof for order reads: issued at order-create, kept in
 // sessionStorage (survives the gateway round-trip in the same tab).
 // Logged-in buyers don't need it — the session is their proof.
-function guestTokenFor(id: string | undefined): string | undefined {
-  if (!id || typeof sessionStorage === "undefined") return undefined;
-  try {
-    return sessionStorage.getItem(`mb:guest:${id}`) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
+// (Shared helper — same-tab guest orders on the dashboard use it too.)
 
 async function fetchOrder(id: string) {
   try {

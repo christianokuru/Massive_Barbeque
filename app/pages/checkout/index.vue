@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { assertGatewayUrl } from "~~/shared/utils/payments";
 import { z } from "zod";
 
 useSeoMeta({ title: "Checkout", robots: "noindex, nofollow" });
@@ -83,26 +84,6 @@ function nextFromFulfillment() {
 }
 
 const totalNaira = (n: number) => `₦${n.toLocaleString()}`;
-
-// Gateway hosts we will redirect to — anything else is rejected
-// (a compromised/malicious init response can't bounce the buyer away).
-const GATEWAY_HOSTS = new Set([
-  "checkout.paystack.com",
-  "paystack.com",
-  "checkout.flutterwave.com",
-  "flutterwave.com",
-]);
-
-function assertGatewayUrl(url: string): string {
-  let host = "";
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    throw new Error("bad-gateway-url");
-  }
-  if (!GATEWAY_HOSTS.has(host)) throw new Error("bad-gateway-url");
-  return url;
-}
 
 async function placeOrder() {
   error.value = "";

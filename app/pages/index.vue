@@ -11,11 +11,11 @@ useSeoMeta({
   titleTemplate: "%s",
   title: "Massive Barbeque — Premium BBQ in Lagos",
   description:
-    "Order premium BBQ in Lagos: barbeque catfish, chicken, turkey, croaker and sides. Delivery and pickup available.",
+    "Order premium Barbeque in Lagos: barbeque catfish, chicken, turkey, croaker and sides. Delivery and pickup available.",
   ogTitle: "Massive Barbeque — Premium BBQ in Lagos",
   ogDescription:
-    "Order premium BBQ in Lagos: barbeque catfish, chicken, turkey, croaker and sides.",
-  ogImage: "/og-image.png",
+    "Order premium Barbeque in Lagos: barbeque catfish, chicken, turkey, croaker and sides.",
+  ogImage: "/og-image.jpeg",
   twitterCard: "summary_large_image",
 });
 

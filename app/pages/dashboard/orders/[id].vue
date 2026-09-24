@@ -1,16 +1,100 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
+import { toast } from "vue-sonner";
 import { deliveryAddressLines } from "~~/shared/utils/orderDisplay";
+import { canUserCancelOrder, isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
+import { assertGatewayUrl } from "~~/shared/utils/payments";
+import { guestTokenForOrder } from "@/utils/guestOrderToken";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
 // Guarded by middleware (server-safe via /api/auth/session) — no in-page
 // session guard: $supabase is client-only (undefined on SSR).
 const route = useRoute();
 
-const { data: order } = await useAsyncData(`order-${route.params.id}`, () =>
+const { data: order, refresh } = await useAsyncData(`order-${route.params.id}`, () =>
   $fetch<{ order: any }>(`/api/orders/${route.params.id}`, { headers: useRequestHeaders(["cookie"]) }).then((r) => r.order).catch(() => null)
 );
+
+// Resume payment: unpaid + not terminal. Cancelling: same rule the server
+// enforces (pending + unpaid), previewed here so dead buttons never show.
+const canResumePay = computed(
+  () =>
+    ["pending", "failed"].includes(order.value?.paymentStatus) &&
+    !isTerminalOrderStatus(order.value?.status)
+);
+const cancelCheck = computed(() =>
+  canUserCancelOrder(order.value?.status, order.value?.paymentStatus)
+);
+
+const paying = ref(false);
+const cancelling = ref(false);
+const confirmCancel = ref(false);
+watch(
+  () => order.value?.id,
+  () => {
+    confirmCancel.value = false;
+  }
+);
+
+async function resumePay() {
+  const o = order.value;
+  if (!o || paying.value) return;
+  paying.value = true;
+  try {
+    const initPath =
+      o.paymentMethod === "flutterwave"
+        ? "/api/payments/flutterwave/initialize"
+        : "/api/payments/paystack/initialize";
+    const payment = await $fetch<{ authorization_url?: string; link?: string }>(initPath, {
+      method: "POST",
+      // No amount: the server prices from the order. Guest token only
+      // exists same-tab (sessionStorage); logged-in buyers use session.
+      body: {
+        email: o.customerEmail,
+        orderId: o.id,
+        guestToken: guestTokenForOrder(o.id),
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+      },
+    });
+    const url = payment.authorization_url ?? payment.link;
+    if (!url) throw new Error("Payment could not be started.");
+    window.location.href = assertGatewayUrl(url);
+  } catch (e: any) {
+    if (e?.message === "bad-gateway-url") {
+      toast.error("Payment could not be started. Try again.");
+    } else {
+      toast.error(e?.data?.statusMessage || e?.message || "Could not start payment.");
+    }
+  } finally {
+    paying.value = false;
+  }
+}
+
+async function cancelOrder() {
+  const o = order.value;
+  if (!o || cancelling.value) return;
+  if (!confirmCancel.value) {
+    confirmCancel.value = true;
+    toast.info("Click again to confirm cancellation. This can't be undone.");
+    return;
+  }
+  cancelling.value = true;
+  try {
+    await $fetch(`/api/orders/${o.id}/cancel`, {
+      method: "POST",
+      body: { guestToken: guestTokenForOrder(o.id) },
+    });
+    toast.success("Order cancelled.");
+    confirmCancel.value = false;
+    await refresh();
+  } catch (e: any) {
+    toast.error(e?.data?.statusMessage || e?.message || "Could not cancel order.");
+  } finally {
+    cancelling.value = false;
+  }
+}
 
 // Kitchen pipeline (mirrors shared/utils/orderStatus.ts). `cancelled` is a
 // terminal branch rendered separately, never part of the timeline.
@@ -129,6 +213,16 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
             <p class="m3-body-md capitalize text-muted-foreground">{{ order.paymentMethod ?? "—" }}</p>
             <OrderStatus :status="order.paymentStatus" />
           </div>
+          <button
+            v-if="canResumePay"
+            type="button"
+            :disabled="paying"
+            class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-8 py-3 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            @click="resumePay"
+          >
+            <M3Icon name="credit_card" :size="18" />
+            {{ paying ? "Starting payment…" : "Complete payment" }}
+          </button>
         </section>
       </div>
 
@@ -162,6 +256,16 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
         <NuxtLink to="/contact" class="inline-flex items-center justify-center gap-2 rounded-full border border-border px-8 py-3.5 text-xs font-medium uppercase tracking-widest transition-colors hover:bg-secondary-container/60">
           Need help?
         </NuxtLink>
+        <button
+          v-if="cancelCheck.ok"
+          type="button"
+          :disabled="cancelling"
+          class="inline-flex items-center justify-center gap-2 rounded-full border border-error/50 px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-error transition-colors hover:bg-error-container hover:text-on-error-container disabled:opacity-50"
+          @click="cancelOrder"
+        >
+          <M3Icon name="cancel" :size="18" />
+          {{ cancelling ? "Cancelling…" : confirmCancel ? "Confirm cancel" : "Cancel order" }}
+        </button>
       </div>
     </div>
 

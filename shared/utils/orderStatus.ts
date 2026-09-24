@@ -90,3 +90,31 @@ export function isTerminalOrderStatus(status: unknown): boolean {
     (TERMINAL_ORDER_STATUSES as readonly string[]).includes(status)
   );
 }
+
+/**
+ * May the buyer cancel this order themselves? Same rule on both sides:
+ * the dashboard previews with it, the cancel endpoint enforces it.
+ * Paid orders are excluded — without a refund integration, cancelling
+ * paid money would keep the cash and kill the food.
+ */
+export function canUserCancelOrder(
+  status: unknown,
+  paymentStatus: unknown,
+): { ok: boolean; reason: string } {
+  // Narrower than the kitchen pipeline on purpose: once an order is
+  // confirmed the kitchen may have fired the grill, so only pending
+  // orders self-cancel. Anything further needs staff (contact us).
+  if (status !== "pending") {
+    return {
+      ok: false,
+      reason: "Only pending orders can be cancelled here — contact us for anything already confirmed.",
+    };
+  }
+  if (paymentStatus === "paid") {
+    return {
+      ok: false,
+      reason: "This order is already paid — contact us and we'll arrange a refund.",
+    };
+  }
+  return { ok: true, reason: "" };
+}

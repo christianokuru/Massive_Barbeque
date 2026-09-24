@@ -139,7 +139,10 @@ function formatDate(iso: string) {
               {{ formatDate(o.createdAt) }} · ₦{{ Number(o.total).toLocaleString("en-NG") }}
             </p>
           </div>
-          <OrderStatus :status="o.status" />
+          <div class="flex shrink-0 items-center gap-2">
+            <OrderStatus :status="o.status" />
+            <OrderStatus :status="o.paymentStatus" />
+          </div>
           <M3Icon name="chevron_right" :size="20" class="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
         </NuxtLink>
       </div>

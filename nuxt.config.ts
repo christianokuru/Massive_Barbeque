@@ -156,7 +156,7 @@ export default defineNuxtConfig({
       keywords:
         "Lagos BBQ, barbeque catfish, grilled chicken, turkey delivery, croaker fish, Nigerian BBQ, food delivery Lagos, catering services, grilled food, barbecue restaurant",
       author: "Massive Barbeque",
-      ogImage: "/og-image.png",
+      ogImage: "/og-image.jpeg",
       twitterCard: "summary_large_image",
       twitterSite: "@massivebarbeque",
     },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_EDITABLE_PAYMENT_STATUSES, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, isTerminalOrderStatus, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
+import { ADMIN_EDITABLE_PAYMENT_STATUSES, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, canUserCancelOrder, isTerminalOrderStatus, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
 
 describe('status enums (Batch 5 contract)', () => {
   it('matches the statuses enforced by the admin API', () => {
@@ -129,5 +129,26 @@ describe('isTerminalOrderStatus', () => {
     expect(isTerminalOrderStatus(undefined)).toBe(false);
     expect(isTerminalOrderStatus(null)).toBe(false);
     expect(isTerminalOrderStatus('refunded')).toBe(false);
+  });
+});
+
+describe('canUserCancelOrder', () => {
+  it('allows cancelling an unpaid pending order', () => {
+    expect(canUserCancelOrder('pending', 'pending')).toEqual({ ok: true, reason: '' });
+    expect(canUserCancelOrder('pending', 'failed')).toEqual({ ok: true, reason: '' });
+  });
+
+  it('refuses non-pending orders', () => {
+    for (const s of ['confirmed', 'preparing', 'ready', 'completed', 'cancelled']) {
+      const r = canUserCancelOrder(s, 'pending');
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('pending');
+    }
+  });
+
+  it('refuses paid orders (no refund path yet)', () => {
+    const r = canUserCancelOrder('pending', 'paid');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain('refund');
   });
 });

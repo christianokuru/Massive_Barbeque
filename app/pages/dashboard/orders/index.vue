@@ -83,6 +83,7 @@ function formatDate(iso: string) {
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <OrderStatus :status="o.status" />
+          <OrderStatus :status="o.paymentStatus" />
           <M3Icon name="chevron_right" :size="20" class="text-muted-foreground transition-transform group-hover:translate-x-1" />
         </div>
       </NuxtLink>

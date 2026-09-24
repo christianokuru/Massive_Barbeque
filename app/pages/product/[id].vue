@@ -114,14 +114,14 @@ useSeoMeta({
   description: () => product.value?.description ?? "Order premium BBQ in Lagos.",
   ogTitle: () => product.value?.name ?? "Massive Barbeque",
   ogDescription: () => product.value?.description ?? "Order premium BBQ in Lagos.",
-  ogImage: () => product.value?.imageUrl ?? "/og-image.png",
+  ogImage: () => product.value?.imageUrl ?? "/og-image.jpeg",
 });
 
 /* Rich results: Product with per-size Offers + breadcrumbs. Relative
    image paths are absolutized — crawlers need full URLs. */
 const SITE_URL = "https://massivebarbeque.com";
 const absoluteImage = (src?: string | null) =>
-  src ? (src.startsWith("http") ? src : `${SITE_URL}${src.startsWith("/") ? src : `/${src}`}`) : `${SITE_URL}/og-image.png`;
+  src ? (src.startsWith("http") ? src : `${SITE_URL}${src.startsWith("/") ? src : `/${src}`}`) : `${SITE_URL}/og-image.jpeg`;
 
 useSchemaOrg([
   {

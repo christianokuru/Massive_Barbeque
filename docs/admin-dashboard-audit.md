@@ -156,17 +156,28 @@ see "Test plan" per item. Suggested build order is at the bottom.
 
 ## F. User dashboard
 
-- [ ] **F1. No payment badge in order lists.** Pending-payment vs confirmed
+- [x] **F1. No payment badge in order lists.** Pending-payment vs confirmed
   indistinguishable. Add `OrderStatus` for `paymentStatus` in
   `dashboard/index.vue` rows + `dashboard/orders.vue` rows.
   _Test: pending-payment order shows pending badge in list._
-- [ ] **F2. No "Complete payment" path.** Stranded unpaid orders with no CTA.
+  **Done 2026-09-20:** both rows render food + payment badges.
+- [x] **F2. No "Complete payment" path.** Stranded unpaid orders with no CTA.
   Add resume-payment button reusing pay-init (ownership/guest-token gated).
   (`dashboard/orders/[id].vue`)
   _Test: pending-payment order exposes resume; init called with order id._
-- [ ] **F3. No user cancel.** Add `PUT /api/orders/:id/cancel` (owner or guest
+  **Done 2026-09-20:** "Complete payment" button on unpaid non-terminal
+  orders; reuses provider init (server prices, allowlisted redirect via
+  shared `assertGatewayUrl()` new in `shared/utils/payments.ts`, tested);
+  guest token attached same-tab. Checkout page refactored onto the shared
+  guard (behavior unchanged).
+- [x] **F3. No user cancel.** Add `PUT /api/orders/:id/cancel` (owner or guest
   token, `pending → cancelled` only via `canTransitionOrder`).
   _Test: owner cancels pending (200); cancel confirmed (400); stranger (404)._
+  **Done 2026-09-20:** `POST /api/orders/:id/cancel` (POST: buyer action, not
+  idempotent-safe PUT). Rule shared both sides via `canUserCancelOrder()`:
+  pending + unpaid only (paid → refund message; confirmed+ → contact us).
+  Rate-limited per IP+order, 404-shaped denials. UI: two-click confirm,
+  toasts, refresh. Helper unit-tested; endpoint path needs live DB.
 - [ ] **F4. "Order again" is just `/menu`.** Prefill cart or relabel.
   (`dashboard/orders/[id].vue:167`)
   _Test: click prefills cart lines (or label copy review)._

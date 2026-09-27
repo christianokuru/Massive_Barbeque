@@ -231,9 +231,16 @@ see "Test plan" per item. Suggested build order is at the bottom.
   set instead. (`dashboard/index.vue:26`)
   _Test: static — pipeline change propagates (review)._
   **Done 2026-09-20:** uses shared `isTerminalOrderStatus()` directly.
-- [ ] **F7. Saved addresses missing.** `addresses` table + RLS exist, zero UI
+- [x] **F7. Saved addresses missing.** `addresses` table + RLS exist, zero UI
   and zero API usage. Build saved-addresses or drop the table in a migration.
   _Test: CRUD addresses; checkout prefills default._
+  **Done 2026-09-20 (built):** user-scoped CRUD API (`GET/POST /api/addresses`,
+  `PUT/DELETE /api/addresses/:id`, `POST /api/addresses/:id/default`;
+  throttled writes, first-saved auto-default, deleting default promotes
+  newest); profile manager (dialog, default badge, two-click delete);
+  checkout pre-fills untouched fields from default on mount (guests skip
+  silently). Schema unit-tested (`tests/addressbook.test.ts`); endpoint
+  paths need live session (manual test).
 
 ## G. Cross-cutting DB / API defects (need decisions first)
 

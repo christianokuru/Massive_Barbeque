@@ -85,6 +85,32 @@ function nextFromFulfillment() {
 
 const totalNaira = (n: number) => `₦${n.toLocaleString()}`;
 
+// Saved addresses: logged-in buyers get their default pre-filled into
+// untouched fields (guests 401 here — silently skipped, manual entry).
+// Runs once on mount; anything the buyer typed is never overwritten.
+onMounted(async () => {
+  try {
+    const data = await $fetch<{ addresses: any[] }>("/api/addresses");
+    const list = data.addresses ?? [];
+    const primary = list.find((a) => a.isDefault) ?? list[0];
+    if (!primary) return;
+    if (!form.value.customerName.trim()) {
+      form.value.customerName = [primary.firstName, primary.lastName].filter(Boolean).join(" ");
+    }
+    if (!form.value.customerPhone.trim() && primary.phone) form.value.customerPhone = primary.phone;
+    if (!form.value.addressLine1.trim() && primary.addressLine1) {
+      form.value.addressLine1 = primary.addressLine1;
+    }
+    if (primary.city) form.value.city = primary.city;
+    if (primary.state) form.value.state = primary.state;
+    if (!form.value.postalCode.trim() && primary.postalCode) {
+      form.value.postalCode = primary.postalCode;
+    }
+  } catch {
+    // Guest or failed load — manual entry as before.
+  }
+});
+
 async function placeOrder() {
   error.value = "";
   if (!items.value.length) {

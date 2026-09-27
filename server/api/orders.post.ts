@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { getServiceSupabase, getAuthUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
-import { cartSubtotal, lineTotal, orderTotals } from "~~/shared/utils/pricing";
+import { cartSubtotal, lineTotal } from "~~/shared/utils/pricing";
+import { getDeliveryFee } from "~~/server/utils/siteSettings";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
 import { getGuestTokenSecret, issueGuestToken } from "~~/server/utils/guestToken";
@@ -116,7 +117,11 @@ export default defineEventHandler(async (event) => {
     const subtotal = cartSubtotal(
       lines.map((l) => ({ price: l.variant.price, quantity: l.quantity }))
     );
-    const { deliveryFee, total } = orderTotals(subtotal, body.fulfillmentType);
+    // Authoritative totals: server-priced lines + the admin-set delivery
+    // fee (cached, falls back to the constant). Client money is display.
+    const configuredFee = await getDeliveryFee();
+    const deliveryFee = body.fulfillmentType === "delivery" ? configuredFee : 0;
+    const total = subtotal + deliveryFee;
 
     // Unpredictable, collision-resistant order numbers (Date.now-based
     // numbers collide under concurrency and leak order rate).

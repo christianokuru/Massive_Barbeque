@@ -60,11 +60,20 @@ const crumbs = computed(() => [
   { label: product.value?.name ?? "Product" },
 ]);
 
-const deliveryInfo = [
-  { icon: "delivery_dining", title: "₦2,000 delivery", text: "Hot across Lagos" },
+const { data: feeData } = await useAsyncData("public-fee", () =>
+  $fetch<{ deliveryFee: number }>("/api/settings/public").catch(() => ({ deliveryFee: NaN }))
+);
+const storeFee = computed(() =>
+  Number.isFinite(feeData.value?.deliveryFee) && (feeData.value?.deliveryFee ?? 0) >= 0
+    ? (feeData.value?.deliveryFee ?? 0)
+    : DELIVERY_FEE_FLAT
+);
+
+const deliveryInfo = computed(() => [
+  { icon: "delivery_dining", title: `₦${storeFee.value.toLocaleString()} delivery`, text: "Hot across Lagos" },
   { icon: "storefront", title: "Free pickup", text: "Grab it fresh" },
   { icon: "schedule", title: "Grilled to order", text: "Made when you order" },
-];
+]);
 
 /* Related rail: same category, excluding the current product. */
 const { data: related } = await useAsyncData(

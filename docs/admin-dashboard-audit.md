@@ -331,16 +331,39 @@ see "Test plan" per item. Suggested build order is at the bottom.
   _Test: live test payment flips order to paid/confirmed unassisted._
 
 ## H. New surfaces (largest scope, last)
-- [ ] **H1. Payments reconciliation view.** References, amounts, webhook
+- [x] **H1. Payments reconciliation view.** References, amounts, webhook
   history from `payments` table.
-- [ ] **H2. Customers list.** Beyond the count stat (note: count includes
+  **Done 2026-09-20:** `/admin/payments` (bounded, newest-first, order number
+  attached) + `GET /api/admin/payments`; in nav. Manual verify.
+- [x] **H2. Customers list.** Beyond the count stat (note: count includes
   unconfirmed signups via `listUsers`; cap 10 pages implicit).
   (`admin/customers/count.get.ts:23-31`)
-- [ ] **H3. Audit log viewer.** Read surface for `admin_audit_log`.
-- [ ] **H4. Settings page.** Delivery fee currently code-constant
+  **Done 2026-09-20:** `/admin/customers` (20/page, order counts via one
+  aggregate query, prev/next) + `GET /api/admin/customers`; in nav.
+  Manual verify.
+- [x] **H3. Audit log viewer.** Read surface for `admin_audit_log`.
+  **Done 2026-09-20:** `/admin/audit` (bounded, newest-first, actor → target
+  + IP, pre-0004 tolerant) + `GET /api/admin/audit-log`; in nav. Manual verify.
+- [x] **H4. Settings page.** Delivery fee currently code-constant
   (`DELIVERY_FEE_FLAT`); needs admin-editable home if H4 ships.
+  **Done 2026-09-20:** `admin_settings` table (migration 0010, service-role
+  only) + cached server reader with constant fallback + `/api/settings/public`
+  + admin GET/PUT (throttled, audited as `settings_change`, migration 0011);
+  `/admin/settings` page in nav; `orders.post` prices from it; checkout/PDP
+  displays read it (constant fallback). Schema tested. Apply 0010+0011 in
+  SQL Editor; manual verify.
 - [ ] **H5. Order notifications.** Confirm whether status-change emails exist
   (Resend key present; receipts noted for orders) — spec before build.
+  **Spec 2026-09-20 (build parked — no RESEND_API_KEY configured):**
+  transactional emails via Resend on (1) webhook-paid → "order confirmed",
+  (2) status → ready → "ready for pickup/dispatch", (3) cancelled →
+  cancelled (+ refund line when paid), (4) refund issued → "refund processed".
+  Rules: send AFTER the DB write commits; email failure logs only and never
+  fails the order write (fail-open notifications, fail-closed money);
+  one send per (order, status) guarded by a `notified_statuses` check or
+  dedupe key; receipts to the order email only; templates plain-text first.
+  Pre-reqs: `RESEND_API_KEY` + verified sender domain in Vercel env, then
+  build `server/utils/orderMail.ts` + hooks in webhook/settle + status PUT.
 
 ---
 

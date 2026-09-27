@@ -25,7 +25,7 @@ const form = ref({
 const error = ref("");
 const placing = ref(false);
 
-const deliveryFee = computed(() => deliveryFeeFor(form.value.fulfillmentType));
+const deliveryFee = computed(() => form.value.fulfillmentType === "delivery" ? configuredFee.value : 0);
 const total = computed(() => subtotal.value + deliveryFee.value);
 
 const steps = [
@@ -88,7 +88,19 @@ const totalNaira = (n: number) => `₦${n.toLocaleString()}`;
 // Saved addresses: logged-in buyers get their default pre-filled into
 // untouched fields (guests 401 here — silently skipped, manual entry).
 // Runs once on mount; anything the buyer typed is never overwritten.
+// Storefront fee: admin-set, falls back to the code constant on any
+// failure (display only — the server reprices authoritatively).
+const configuredFee = ref(DELIVERY_FEE_FLAT);
+
 onMounted(async () => {
+  try {
+    const settings = await $fetch<{ deliveryFee: number }>("/api/settings/public");
+    if (Number.isFinite(settings.deliveryFee) && settings.deliveryFee >= 0) {
+      configuredFee.value = settings.deliveryFee;
+    }
+  } catch {
+    // Constant stands in — checkout still works.
+  }
   try {
     const data = await $fetch<{ addresses: any[] }>("/api/addresses");
     const list = data.addresses ?? [];
@@ -263,7 +275,7 @@ async function placeOrder() {
                 @click="form.fulfillmentType = 'delivery'"
               >
                 <span class="block font-semibold">Delivery</span>
-                <span class="mt-0.5 block text-sm text-muted-foreground">+₦2,000 · hot across Lagos</span>
+                <span class="mt-0.5 block text-sm text-muted-foreground">+₦{{ configuredFee.toLocaleString() }} · hot across Lagos</span>
               </button>
               <button
                 type="button"

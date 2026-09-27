@@ -17,6 +17,10 @@ const title = computed(() => {
   if (path.startsWith("/admin/orders")) return "Orders";
   if (path.startsWith("/admin/products")) return "Products";
   if (path.startsWith("/admin/categories")) return "Categories";
+  if (path.startsWith("/admin/payments")) return "Payments";
+  if (path.startsWith("/admin/customers")) return "Customers";
+  if (path.startsWith("/admin/audit")) return "Audit log";
+  if (path.startsWith("/admin/settings")) return "Settings";
   if (path.startsWith("/admin/admins")) return "Admins";
   return "Dashboard";
 });

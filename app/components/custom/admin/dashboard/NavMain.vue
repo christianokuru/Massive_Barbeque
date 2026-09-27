@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Component } from "vue";
-import { ClipboardList, LayoutDashboard, Package, Plus, ShieldCheck } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, Package, Plus, ShieldCheck, Tags } from "lucide-vue-next";
 
 import {
   SidebarGroup,
@@ -25,6 +25,7 @@ const items = computed<NavItem[]>(() => [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Orders", url: "/admin/orders", icon: ClipboardList },
   { title: "Products", url: "/admin/products", icon: Package },
+  { title: "Categories", url: "/admin/categories", icon: Tags },
   ...(isOwner.value ? [{ title: "Admins", url: "/admin/admins", icon: ShieldCheck }] : []),
 ]);
 

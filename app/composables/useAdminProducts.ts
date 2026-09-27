@@ -2,6 +2,7 @@
 // create/edit dialog state (shared so the sidebar "New product" shortcut
 // opens the same modal), and every API call with toast feedback.
 import { toast } from "vue-sonner";
+import { slugify } from "~~/shared/utils/slug";
 
 export interface AdminProductVariant {
   id?: number
@@ -45,15 +46,6 @@ interface DialogState {
   productId: number | string | null
 }
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-");
-}
-
 function variantKey(v: AdminProductVariant) {
   return JSON.stringify([
     v.name, v.sku, String(v.price), v.comparePrice ?? null,
@@ -83,10 +75,12 @@ export function useAdminProducts() {
     }
   }
 
-  async function fetchCategories() {
-    if (categories.value.length > 0) return;
+  async function fetchCategories(force = false) {
+    if (!force && categories.value.length > 0) return;
     try {
-      const data = await $fetch<{ categories: AdminCategory[] }>("/api/categories");
+      // Admin list: includes inactive categories so any of them can be
+      // assigned (the storefront still only shows active ones).
+      const data = await $fetch<{ categories: AdminCategory[] }>("/api/admin/categories");
       categories.value = data.categories ?? [];
     } catch {
       // Category select simply stays empty — products can be uncategorized.

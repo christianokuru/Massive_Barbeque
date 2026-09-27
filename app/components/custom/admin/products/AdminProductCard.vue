@@ -29,11 +29,16 @@ const { openEdit, removeProduct } = useAdminProducts();
 const confirmOpen = ref(false);
 
 const prices = computed(() =>
-  (props.product.variants ?? []).map((v) => Number(v.price || 0)).filter((n) => n > 0)
+  (props.product.variants ?? [])
+    .filter((v) => v.isActive !== false)
+    .map((v) => Number(v.price || 0))
+    .filter((n) => n > 0)
 );
 
 const priceLabel = computed(() => {
-  if (prices.value.length === 0) return "No price set";
+  if (prices.value.length === 0) {
+    return (props.product.variants ?? []).length > 0 ? "No active variants" : "No price set";
+  }
   const min = Math.min(...prices.value);
   const max = Math.max(...prices.value);
   if (min === max) return formatNaira(min);
@@ -97,8 +102,10 @@ async function handleDelete() {
           :key="variant.id ?? variant.sku"
           variant="secondary"
           class="font-normal"
+          :class="variant.isActive === false && 'opacity-50'"
+          :title="variant.isActive === false ? 'Hidden from the store' : undefined"
         >
-          {{ variant.name }} · {{ formatNaira(Number(variant.price || 0)) }}
+          {{ variant.name }} · {{ formatNaira(Number(variant.price || 0)) }}{{ variant.isActive === false ? " · off" : "" }}
         </Badge>
       </div>
       <p v-else class="text-sm text-muted-foreground">No variants</p>

@@ -50,6 +50,8 @@ const variantSchema = z.object({
   name: z.string().min(1, "Name required"),
   sku: z.string().min(1, "SKU required"),
   price: z.string().regex(PRICE_RE, "e.g. 8500 or 8500.00"),
+  comparePrice: z.string().regex(PRICE_RE, "e.g. 8500 or 8500.00").optional().or(z.literal("")),
+  weight: z.string().regex(PRICE_RE, "e.g. 0.5").optional().or(z.literal("")),
   inventoryQty: z.number().int().min(0),
 });
 
@@ -242,6 +244,8 @@ async function handleSubmit() {
       name: v.name.trim(),
       sku: v.sku.trim(),
       price: v.price.trim(),
+      comparePrice: (v.comparePrice ?? "").trim(),
+      weight: (v.weight ?? "").trim(),
       inventoryQty: Number(v.inventoryQty ?? 0),
     })),
   });
@@ -270,9 +274,9 @@ async function handleSubmit() {
         name: parsed.data.variants[i].name,
         sku: parsed.data.variants[i].sku,
         price: parsed.data.variants[i].price,
-        comparePrice: v.comparePrice ?? null,
+        comparePrice: parsed.data.variants[i].comparePrice || null,
         inventoryQty: parsed.data.variants[i].inventoryQty,
-        weight: v.weight ?? null,
+        weight: parsed.data.variants[i].weight || null,
         isActive: v.isActive !== false,
       })),
     });
@@ -435,26 +439,44 @@ async function handleSubmit() {
           <div
             v-for="(variant, i) in form.variants"
             :key="variant._key"
-            class="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+            class="grid gap-2 rounded-lg border p-3 sm:grid-cols-3"
           >
             <div class="grid gap-1">
-              <Input v-model="variant.name" placeholder="Name (Full)" />
+              <Label :for="`variant-name-${variant._key}`">Name *</Label>
+              <Input :id="`variant-name-${variant._key}`" v-model="variant.name" placeholder="Full" />
               <p v-if="errors[`variants.${i}.name`]" class="text-xs text-destructive">{{ errors[`variants.${i}.name`] }}</p>
             </div>
             <div class="grid gap-1">
-              <Input v-model="variant.sku" placeholder="SKU" />
+              <Label :for="`variant-sku-${variant._key}`">SKU *</Label>
+              <Input :id="`variant-sku-${variant._key}`" v-model="variant.sku" placeholder="MB-ITEM-FULL" />
               <p v-if="errors[`variants.${i}.sku`]" class="text-xs text-destructive">{{ errors[`variants.${i}.sku`] }}</p>
             </div>
             <div class="grid gap-1">
-              <Input v-model="variant.price" inputmode="decimal" placeholder="₦ price" />
+              <Label :for="`variant-price-${variant._key}`">Price (₦) *</Label>
+              <Input :id="`variant-price-${variant._key}`" v-model="variant.price" inputmode="decimal" placeholder="8500" />
               <p v-if="errors[`variants.${i}.price`]" class="text-xs text-destructive">{{ errors[`variants.${i}.price`] }}</p>
             </div>
             <div class="grid gap-1">
-              <Input v-model.number="variant.inventoryQty" type="number" min="0" placeholder="Stock" />
+              <Label :for="`variant-compare-${variant._key}`">Compare-at (₦)</Label>
+              <Input :id="`variant-compare-${variant._key}`" v-model="variant.comparePrice" inputmode="decimal" placeholder="Optional" />
+              <p v-if="errors[`variants.${i}.comparePrice`]" class="text-xs text-destructive">{{ errors[`variants.${i}.comparePrice`] }}</p>
             </div>
-            <Button type="button" variant="ghost" size="icon" class="text-destructive" aria-label="Remove variant" @click="removeVariant(variant._key)">
-              <Trash2 />
-            </Button>
+            <div class="grid gap-1">
+              <Label :for="`variant-stock-${variant._key}`">Stock</Label>
+              <Input :id="`variant-stock-${variant._key}`" v-model.number="variant.inventoryQty" type="number" min="0" placeholder="0" />
+            </div>
+            <div class="grid gap-1">
+              <span class="text-sm font-medium">Visibility</span>
+              <div class="flex items-center gap-2">
+                <label class="flex flex-1 cursor-pointer items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-xs">
+                  <Checkbox :model-value="variant.isActive !== false" @update:model-value="(v) => variant.isActive = !!v" />
+                  Active
+                </label>
+                <Button type="button" variant="ghost" size="icon" class="shrink-0 text-destructive" aria-label="Remove variant" @click="removeVariant(variant._key)">
+                  <Trash2 />
+                </Button>
+              </div>
+            </div>
           </div>
           <p v-if="form.variants.length === 0" class="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
             No variants yet — customers will see the product without size options.

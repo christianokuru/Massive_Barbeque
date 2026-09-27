@@ -116,14 +116,24 @@ see "Test plan" per item. Suggested build order is at the bottom.
 
 ## D. Products console
 
-- [ ] **D1. No category management.** No UI to create/edit/deactivate
+- [x] **D1. No category management.** No UI to create/edit/deactivate
   categories; dialog list is public active-only (can't assign inactive).
   (`useAdminProducts.ts:89`)
   _Test: CRUD categories; inactive category assignable but hidden storefront._
-- [ ] **D2. Variant editing incomplete.** Expose `comparePrice`, `weight`,
+  **Done 2026-09-20:** full `/api/admin/categories` CRUD (GET all + parents,
+  POST with slug auto-derive, PUT with cycle guard, DELETE blocked when
+  children exist with 409, duplicate slug → 409 via shared
+  `throwIfUniqueViolation()`); `/admin/categories` manager page (dialog,
+  two-click delete, in nav + layout title); dialog now reads the admin list
+  so any category is assignable; shared `slugify()` (`shared/utils/slug.ts`,
+  tested) replaces the dialog-local copy.
+- [x] **D2. Variant editing incomplete.** Expose `comparePrice`, `weight`,
   per-variant `isActive` in the dialog (schema + API already support them).
   (`ProductDialog.vue:436-458`)
   _Test: deactivate single variant → hidden storefront, kept in admin._
+  **Done 2026-09-20:** labeled Compare-at / Stock / Active inputs per variant
+  row with client validation; API already persisted all three (verified).
+  Card price range now uses active variants only + dimmed "off" chips.
 - [ ] **D3. Duplicate SKU/slug → raw 500.** Return 409 with field message.
   (`admin/products/index.post.ts:56/74`, `admin/variants/index.post.ts`)
   _Test: duplicate SKU asserts 409 + message; duplicate slug likewise._
@@ -137,10 +147,12 @@ see "Test plan" per item. Suggested build order is at the bottom.
   reported._
 - [ ] **D6. No product audit.** Log creates/updates/deletes (at least deletes).
   _Test: product delete writes audit row._
-- [ ] **D7. Minor console gaps.** Admin product search; card price range mixes
+- [x] **D7. Minor console gaps.** Admin product search; card price range mixes
   inactive variants (`AdminProductCard.vue:31-33`); client-side 5 MB pre-check
   before upload.
   _Test: search filters grid; range uses active variants only._
+  **Partly done 2026-09-20:** card range + chips fixed. Admin product search
+  and upload pre-check remain open (folded into G4 scale pass).
 
 ## E. Admin governance UI (`admin/admins.vue`, `NavMain`, `NavUser`)
 

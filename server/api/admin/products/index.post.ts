@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { requireAdmin } from "~~/server/utils/supabase";
 import { imageUrlSchema } from "~~/server/utils/productImages";
+import { throwIfUniqueViolation } from "~~/server/utils/uniqueViolation";
+import { auditAdminAction } from "~~/server/utils/adminGovernance";
+import { getClientIp } from "~~/server/utils/clientIp";
 import { toProduct } from "~~/server/utils/mappers";
 
 const productSchema = z.object({
@@ -36,8 +39,11 @@ const productSchema = z.object({
 
 export default defineEventHandler(async (event) => {
   try {
-    const { supabase } = await requireAdmin(event);
+    const { supabase, user } = await requireAdmin(event);
     const body = await readValidatedBody(event, productSchema.parse);
+
+    // Fail-closed: audit the create before it happens.
+    await auditAdminAction(user.email || null, "product_create", body.slug, getClientIp(event));
 
     // Create product
     const { data: newProduct, error: productError } = await supabase
@@ -53,7 +59,7 @@ export default defineEventHandler(async (event) => {
       })
       .select()
       .single();
-    if (productError) throw productError;
+    if (productError) throwIfUniqueViolation(productError, "A product with this slug already exists.");
 
     // Create variants if provided
     if (body.variants && body.variants.length > 0) {
@@ -71,7 +77,7 @@ export default defineEventHandler(async (event) => {
             is_active: variant.isActive,
           }))
         );
-      if (variantsError) throw variantsError;
+      if (variantsError) throwIfUniqueViolation(variantsError, "A variant with this SKU already exists.");
     }
 
     // Fetch the complete product with variants

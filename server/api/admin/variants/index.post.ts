@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireAdmin } from "~~/server/utils/supabase";
+import { throwIfUniqueViolation } from "~~/server/utils/uniqueViolation";
 
 const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
       })
       .select()
       .single();
-    if (error) throw error;
+    if (error) throwIfUniqueViolation(error, "A variant with this SKU already exists.");
 
     return { success: true, variant: data };
   } catch (error: any) {

@@ -134,19 +134,29 @@ see "Test plan" per item. Suggested build order is at the bottom.
   **Done 2026-09-20:** labeled Compare-at / Stock / Active inputs per variant
   row with client validation; API already persisted all three (verified).
   Card price range now uses active variants only + dimmed "off" chips.
-- [ ] **D3. Duplicate SKU/slug → raw 500.** Return 409 with field message.
+- [x] **D3. Duplicate SKU/slug → raw 500.** Return 409 with field message.
   (`admin/products/index.post.ts:56/74`, `admin/variants/index.post.ts`)
   _Test: duplicate SKU asserts 409 + message; duplicate slug likewise._
-- [ ] **D4. Product delete orphans bucket files.** DB cascades; storage
+  **Done 2026-09-20:** shared `throwIfUniqueViolation()` maps 23505 → 409
+  on product create/update (slug), variant create/update (SKU), category
+  create/update (slug). Unit-tested (`tests/catalogIntegrity.test.ts`).
+- [x] **D4. Product delete orphans bucket files.** DB cascades; storage
   doesn't (only single-image delete cleans up).
   (`admin/products/[id].delete.ts` vs `product-images/[id].delete.ts:27-37`)
   _Test: deleting product removes its bucket files._
+  **Done 2026-09-20:** shared `server/utils/productStorage.ts`
+  (path parser tested, best-effort removal); product delete collects cover +
+  extras URLs and removes them; single-image delete refactored onto it.
+  Live-bucket path needs manual verify.
 - [ ] **D5. Variant sync non-transactional.** Mid-loop failure leaves
   half-applied sets. (`useAdminProducts.ts:124-168`)
   _Test: simulated mid-sync failure leaves variants unchanged or fully
   reported._
-- [ ] **D6. No product audit.** Log creates/updates/deletes (at least deletes).
+- [x] **D6. No product audit.** Log creates/updates/deletes (at least deletes).
   _Test: product delete writes audit row._
+  **Done 2026-09-20:** audit-first hooks on product create/update/delete
+  (`product_create/update/delete` — migration `0007_product_audit.sql` must
+  be applied in SQL Editor). Endpoint path needs live DB (manual test).
 - [x] **D7. Minor console gaps.** Admin product search; card price range mixes
   inactive variants (`AdminProductCard.vue:31-33`); client-side 5 MB pre-check
   before upload.

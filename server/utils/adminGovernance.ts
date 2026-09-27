@@ -48,7 +48,7 @@ export async function requireOwner(event: any) {
 
 export async function auditAdminAction(
   actorEmail: string | null,
-  action: "promote" | "demote" | "invite" | "invite_consumed" | "invite_revoked" | "status_change",
+  action: "promote" | "demote" | "invite" | "invite_consumed" | "invite_revoked" | "status_change" | "product_create" | "product_update" | "product_delete",
   targetEmail: string,
   actorIp?: string
 ): Promise<void> {

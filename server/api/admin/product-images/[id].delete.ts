@@ -1,7 +1,5 @@
 import { requireAdmin, getServiceSupabase } from "~~/server/utils/supabase";
-
-const BUCKET = "product-images";
-const BUCKET_MARKER = "/product-images/";
+import { removeStorageUrls } from "~~/server/utils/productStorage";
 
 // Remove one extra gallery photo. The cover photo (products.image_url)
 // is untouched, so a food always keeps at least its required picture.
@@ -24,17 +22,7 @@ export default defineEventHandler(async (event) => {
   const { error } = await admin.from("product_images").delete().eq("id", imageId);
   if (error) throw error;
 
-  const markerAt = image.image_url.indexOf(BUCKET_MARKER);
-  if (markerAt !== -1) {
-    const path = image.image_url.slice(markerAt + BUCKET_MARKER.length).split("?")[0];
-    if (path && !path.includes("..")) {
-      try {
-        await admin.storage.from(BUCKET).remove([path]);
-      } catch {
-        // Orphan file at worst — the catalog row is already gone.
-      }
-    }
-  }
+  await removeStorageUrls(admin, [image.image_url]);
 
   return { success: true };
 });

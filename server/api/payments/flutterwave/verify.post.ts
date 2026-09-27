@@ -3,9 +3,10 @@ import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
 import { assertOrderAccess } from "~~/server/utils/orderAccess";
 
-// Display-only: never writes to the DB (webhooks are the sole paid
-// writer). Returns a minimal paid/orderId/amount tuple — never the raw
-// provider payload.
+// Display-only for paid: webhooks are the sole paid writer. One
+// exception (PAY1): a DEFINITIVE provider failure flips a still-pending
+// row to failed — this direction grants nothing. Returns a minimal
+// paid/orderId/amount tuple — never the raw provider payload.
 const flutterwaveVerifySchema = z.object({
   transaction_id: z.coerce.string().min(1).max(100),
   guestToken: z.string().max(4096).optional(),
@@ -46,7 +47,7 @@ export default defineEventHandler(async (event) => {
     const supabase = getServiceSupabase();
     const { data: known } = await supabase
       .from("payments")
-      .select("order_id, reference")
+      .select("order_id, reference, status")
       .eq("provider", "flutterwave")
       .eq("reference", data.data?.tx_ref)
       .maybeSingle();
@@ -62,6 +63,19 @@ export default defineEventHandler(async (event) => {
       data.data?.currency === "NGN" &&
       Number.isFinite(Number(data.data?.amount)) &&
       Number(data.data.amount) >= Number(order.total);
+
+    // PAY1: Flutterwave terminal failure ('failed', 'cancelled') settles
+    // a still-pending row as failed. Anything else is left for retry.
+    if (!paid && data.status === "success" && known.status === "pending") {
+      const providerState = String(data.data?.status || "");
+      if (providerState === "failed" || providerState === "cancelled") {
+        await supabase
+          .from("payments")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("reference", known.reference)
+          .eq("status", "pending");
+      }
+    }
 
     return {
       success: true,

@@ -8,12 +8,19 @@ definePageMeta({ layout: "admin", middleware: "admin" });
 const route = useRoute();
 // Session comes from the admin middleware (single-flight) — no fetch here.
 const requestHeaders = useRequestHeaders(["cookie"]);
+const { isOwner } = useAuth();
 const { data: order, refresh } = await useAsyncData(`admin-order-${route.params.id}`, () =>
   $fetch<{ order: any }>(`/api/orders/${route.params.id}`, { headers: requestHeaders }).then((r) => r.order).catch(() => null)
 );
 const status = ref("confirmed");
 const paymentStatus = ref("paid");
 const saving = ref(false);
+// Provider refund (owner-only money-out): two clicks, provider-confirmed.
+const confirmProviderRefund = ref(false);
+const refunding = ref(false);
+const paidPayment = computed(
+  () => (order.value?.payments ?? []).find((p: any) => p.status === "paid") ?? null
+);
 // Record-only refund needs an explicit second click — setting `refunded`
 // relabels the row only; the money moves at the payment provider.
 const confirmRefund = ref(false);
@@ -42,11 +49,38 @@ watchEffect(() => {
     status.value = order.value.status;
     paymentStatus.value = order.value.paymentStatus;
     confirmRefund.value = false;
+    confirmProviderRefund.value = false;
   }
 });
 watch(paymentStatus, () => {
   confirmRefund.value = false;
 });
+async function refundViaProvider() {
+  if (!paidPayment.value || refunding.value) return;
+  if (!confirmProviderRefund.value) {
+    confirmProviderRefund.value = true;
+    toast.info("This moves real money at the provider. Click again to confirm the refund.");
+    return;
+  }
+  refunding.value = true;
+  try {
+    const result = await $fetch<{ state: string }>("/api/admin/payments/refund", {
+      method: "POST",
+      body: { reference: paidPayment.value.reference },
+    });
+    if (result.state === "pending") {
+      toast.info("Refund accepted and pending at the provider — retry later to confirm.");
+    } else {
+      toast.success("Refunded at the provider. Payment now reads refunded.");
+    }
+    confirmProviderRefund.value = false;
+    await refresh();
+  } catch (e: any) {
+    toast.error(e?.data?.statusMessage || e?.message || "Refund failed — no money moved on our side.");
+  } finally {
+    refunding.value = false;
+  }
+}
 async function save() {
   if (
     paymentStatus.value === "refunded" &&
@@ -142,6 +176,15 @@ async function save() {
             </div>
           </div>
           <p v-else class="mt-3 text-sm text-muted-foreground">No payment attempts recorded yet.</p>
+          <button
+            v-if="isOwner && paidPayment"
+            type="button"
+            :disabled="refunding"
+            class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-error/50 px-5 py-2.5 text-xs font-medium uppercase tracking-widest text-error transition-colors hover:bg-error-container hover:text-on-error-container disabled:opacity-50"
+            @click="refundViaProvider"
+          >
+            {{ refunding ? "Refunding…" : confirmProviderRefund ? "Confirm provider refund" : `Refund via ${order.paymentMethod ?? "provider"}` }}
+          </button>
         </section>
       </div>
 

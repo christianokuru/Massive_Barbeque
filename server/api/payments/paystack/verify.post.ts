@@ -3,8 +3,11 @@ import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
 import { assertOrderAccess } from "~~/server/utils/orderAccess";
 
-// Display-only: never writes to the DB (webhooks are the sole paid
-// writer). Returns a minimal paid/orderId/amount tuple — never the raw
+// Display-only for paid: webhooks are the sole paid writer. One
+// exception (PAY1): a DEFINITIVE provider failure flips a still-pending
+// row to failed — this direction grants nothing, it only stops a dead
+// reference from looking payable forever. Anything ambiguous is left
+// untouched. Returns a minimal paid/orderId/amount tuple — never the raw
 // provider payload (it carries customer email, card auth/BIN, etc.).
 const paystackVerifySchema = z.object({
   reference: z.string().min(1).max(200),
@@ -27,7 +30,7 @@ export default defineEventHandler(async (event) => {
     // this can't be used as a general provider oracle.
     const { data: payment } = await supabase
       .from("payments")
-      .select("order_id, reference")
+      .select("order_id, reference, status")
       .eq("provider", "paystack")
       .eq("reference", body.reference)
       .maybeSingle();
@@ -64,6 +67,20 @@ export default defineEventHandler(async (event) => {
       Number.isFinite(Number(data.data?.amount)) &&
       Number(data.data.amount) >= expectedKobo &&
       String(data.data?.metadata?.order_id || payment.order_id) === payment.order_id;
+
+    // PAY1: Paystack terminal failure ('failed', 'abandoned') settles a
+    // still-pending row as failed. Provider errors (data.status false)
+    // prove nothing — left alone for retry.
+    if (!paid && data.status === true && payment.status === "pending") {
+      const providerState = String(data.data?.status || "");
+      if (providerState === "failed" || providerState === "abandoned") {
+        await supabase
+          .from("payments")
+          .update({ status: "failed", raw: data.data, updated_at: new Date().toISOString() })
+          .eq("reference", payment.reference)
+          .eq("status", "pending");
+      }
+    }
 
     return {
       success: true,

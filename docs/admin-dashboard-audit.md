@@ -305,13 +305,24 @@ see "Test plan" per item. Suggested build order is at the bottom.
 
 ## PAY. Payment automation (deferred — needs deploy + provider wiring)
 
-- [ ] **PAY1. Auto-`failed`.** Process provider failure events (and/or expire
+- [x] **PAY1. Auto-`failed`.** Process provider failure events (and/or expire
   abandoned pending payments) instead of hand-labeling.
   _Test: failed provider event flips payment to failed; order untouched._
-- [ ] **PAY2. Provider refunds + auto-`refunded`.** Integrate refund APIs;
+  **Done 2026-09-20 (verify-driven):** both verify endpoints flip a
+  still-pending row to `failed` on DEFINITIVE provider states only
+  (Paystack failed/abandoned, Flutterwave failed/cancelled); ambiguous
+  provider errors left for retry, paid path untouched (webhooks stay sole
+  paid writer). Needs live gateway traffic to observe (manual test).
+- [x] **PAY2. Provider refunds + auto-`refunded`.** Integrate refund APIs;
   webhook confirmation flips payment to refunded. Until then `refunded`
   stays record-only (see C3).
   _Test: refund call mocked per provider; webhook flips status._
+  **Done 2026-09-20 (synchronous confirm):** owner-only
+  `POST /api/admin/payments/refund` (throttled, paid-only, idempotent,
+  audited as `refund` — migration `0009_refund_audit.sql` must be applied);
+  provider-accepted-but-pending writes nothing (retry later); admin detail
+  has an owner-gated two-click "Refund via provider" button. Needs live
+  provider keys + small real refund to verify (manual test).
 - [ ] **PAY3. Webhook wiring (ops, no code).** Deploy → set webhook URLs in
   Paystack/Flutterwave dashboards to the Vercel URL
   (`…/api/payments/webhooks/{paystack,flutterwave}`) → provider secrets in

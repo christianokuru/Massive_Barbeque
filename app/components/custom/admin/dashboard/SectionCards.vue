@@ -49,7 +49,7 @@ function formatNaira(value: number) {
           Paid orders, all time
         </div>
         <div class="text-muted-foreground">
-          Excludes pending and failed payments
+          Kept revenue — cancelled orders excluded
         </div>
       </CardFooter>
     </Card>

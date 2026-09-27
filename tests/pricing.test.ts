@@ -4,6 +4,7 @@ import {
   cartSubtotal,
   deliveryFeeFor,
   formatNaira,
+  isRevenueOrder,
   lineTotal,
   orderTotals,
   pctChange,
@@ -108,5 +109,18 @@ describe('pctChange (dashboard revenue delta)', () => {
     expect(pctChange(0, 0)).toBe(null);
     expect(pctChange(NaN, 100)).toBe(null);
     expect(pctChange(100, -50)).toBe(null);
+  });
+});
+
+describe('isRevenueOrder', () => {
+  it('counts paid, kept orders', () => {
+    expect(isRevenueOrder('confirmed', 'paid')).toBe(true);
+    expect(isRevenueOrder('completed', 'paid')).toBe(true);
+  });
+
+  it('excludes cancelled and unpaid orders', () => {
+    expect(isRevenueOrder('cancelled', 'paid')).toBe(false);
+    expect(isRevenueOrder('pending', 'pending')).toBe(false);
+    expect(isRevenueOrder('confirmed', 'failed')).toBe(false);
   });
 });

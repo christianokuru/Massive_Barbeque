@@ -1,6 +1,7 @@
 import { requireAdmin, getServiceSupabase } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 import { ATTENTION_STATUSES } from "~~/shared/utils/orderStatus";
+import { isRevenueOrder } from "~~/shared/utils/pricing";
 import {
   buildRevenueSeries,
   needsAttentionRows,
@@ -32,18 +33,19 @@ export default defineEventHandler(async (event) => {
     if (productsError) throw productsError;
 
     const orders = (rows ?? []).map(toOrder);
-    const paid = orders.filter((o) => o.paymentStatus === "paid");
+    // Revenue = paid and kept. Cancelled orders are refund-owed, not revenue.
+    const revenueOrders = orders.filter((o) => isRevenueOrder(o.status, o.paymentStatus));
 
     return {
       stats: {
-        revenue: paid.reduce((sum, o) => sum + Number(o.total || 0), 0),
-        revenueDeltaPct: revenueDeltaFor(orders),
+        revenue: revenueOrders.reduce((sum, o) => sum + Number(o.total || 0), 0),
+        revenueDeltaPct: revenueDeltaFor(revenueOrders),
         totalOrders: orders.length,
         pendingOrders: orders.filter((o) => o.status === "pending").length,
         activeProducts: activeProducts ?? 0,
         totalCustomers,
       },
-      revenueSeries: buildRevenueSeries(orders),
+      revenueSeries: buildRevenueSeries(revenueOrders),
       attention: needsAttentionRows(orders, ATTENTION_STATUSES, 20),
     };
   } catch (error: any) {

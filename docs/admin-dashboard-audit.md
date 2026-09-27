@@ -53,9 +53,12 @@ see "Test plan" per item. Suggested build order is at the bottom.
   **Fixed 2026-09-20:** real week-over-week paid-revenue delta via new pure
   `pctChange()` in `shared/utils/pricing.ts` (null when baseline is 0, badge
   hides); 4 tests in `tests/pricing.test.ts`.
-- [ ] **A6. Revenue ignores cancels/refunds.** Paid-then-cancelled orders still
+- [x] **A6. Revenue ignores cancels/refunds.** Paid-then-cancelled orders still
   sum into revenue. Decide netting rule.
   _Test: paid+cancelled order excluded (or included) per rule._
+  **Decided 2026-09-20: revenue = paid AND uncancelled** (cancelled money is
+  refund-owed, not revenue). Shared `isRevenueOrder()` tested; overview
+  sums/series use it; card footer says so.
 
 ## B. Admin DataTable (`dashboard/DataTable.vue`)
 
@@ -148,10 +151,14 @@ see "Test plan" per item. Suggested build order is at the bottom.
   (path parser tested, best-effort removal); product delete collects cover +
   extras URLs and removes them; single-image delete refactored onto it.
   Live-bucket path needs manual verify.
-- [ ] **D5. Variant sync non-transactional.** Mid-loop failure leaves
+- [x] **D5. Variant sync non-transactional.** Mid-loop failure leaves
   half-applied sets. (`useAdminProducts.ts:124-168`)
   _Test: simulated mid-sync failure leaves variants unchanged or fully
   reported._
+  **Done 2026-09-20:** every op attempted, failures counted and surfaced
+  ("N variant changes failed — review and retry") instead of failing
+  silently midway. True transactions aren't available via the client lib;
+  per-op errors now surface with the 409 messages from D3.
 - [x] **D6. No product audit.** Log creates/updates/deletes (at least deletes).
   _Test: product delete writes audit row._
   **Done 2026-09-20:** audit-first hooks on product create/update/delete
@@ -209,16 +216,21 @@ see "Test plan" per item. Suggested build order is at the bottom.
   pending + unpaid only (paid → refund message; confirmed+ → contact us).
   Rate-limited per IP+order, 404-shaped denials. UI: two-click confirm,
   toasts, refresh. Helper unit-tested; endpoint path needs live DB.
-- [ ] **F4. "Order again" is just `/menu`.** Prefill cart or relabel.
+- [x] **F4. "Order again" is just `/menu`.** Prefill cart or relabel.
   (`dashboard/orders/[id].vue:167`)
   _Test: click prefills cart lines (or label copy review)._
-- [ ] **F5. Cancelled copy overpromises.** "No charge was kept" unverified for
+  **Done 2026-09-20:** real reorder — restores every line with a live
+  variant id (+ display snapshot), skips retired variants with a count,
+  then goes to checkout (server re-validates activeness there).
+- [x] **F5. Cancelled copy overpromises.** "No charge was kept" unverified for
   paid orders — qualify by payment status.
   _Test: cancelled+paid shows refund-contact copy; cancelled+pending shows
   current copy._
-- [ ] **F6. `TERMINAL` duplicates pipeline.** Import `ORDER_STATUSES`-derived
+  **Done 2026-09-20:** paid-cancelled shows refund-processing copy.
+- [x] **F6. `TERMINAL` duplicates pipeline.** Import `ORDER_STATUSES`-derived
   set instead. (`dashboard/index.vue:26`)
   _Test: static — pipeline change propagates (review)._
+  **Done 2026-09-20:** uses shared `isTerminalOrderStatus()` directly.
 - [ ] **F7. Saved addresses missing.** `addresses` table + RLS exist, zero UI
   and zero API usage. Build saved-addresses or drop the table in a migration.
   _Test: CRUD addresses; checkout prefills default._

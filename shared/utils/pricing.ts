@@ -66,3 +66,11 @@ export function pctChange(current: number, previous: number): number | null {
   if (current === previous) return 0;
   return Math.round(((current - previous) / previous) * 100);
 }
+
+/**
+ * Does this order count toward revenue? Paid and kept — a cancelled order
+ * is refund-owed, not revenue, even if the money arrived first.
+ */
+export function isRevenueOrder(status: unknown, paymentStatus: unknown): boolean {
+  return paymentStatus === "paid" && status !== "cancelled";
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
+import { isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
 // Guarded by middleware (server-safe via /api/auth/session), which also
@@ -23,8 +24,7 @@ onMounted(() => {
   greeting.value = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 });
 
-const TERMINAL = ["completed", "cancelled"];
-const activeOrders = computed(() => all.value.filter((o) => !TERMINAL.includes(o.status)));
+const activeOrders = computed(() => all.value.filter((o) => !isTerminalOrderStatus(o.status)));
 const spotlight = computed(() => activeOrders.value[0] ?? null);
 const totalSpent = computed(() =>
   all.value

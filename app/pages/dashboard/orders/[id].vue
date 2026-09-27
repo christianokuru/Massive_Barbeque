@@ -30,6 +30,7 @@ const cancelCheck = computed(() =>
 const paying = ref(false);
 const cancelling = ref(false);
 const confirmCancel = ref(false);
+const reordering = ref(false);
 watch(
   () => order.value?.id,
   () => {
@@ -69,6 +70,50 @@ async function resumePay() {
     }
   } finally {
     paying.value = false;
+  }
+}
+
+// Order again: restore every line that still has a variant behind it.
+// Retired variants are skipped and reported; the server re-validates
+// activeness at checkout, so nothing stale can slip through.
+async function reorder() {
+  const o = order.value;
+  if (!o || reordering.value) return;
+  reordering.value = true;
+  try {
+    const { addItem } = useCart();
+    let restored = 0;
+    let skipped = 0;
+    for (const item of o.items ?? []) {
+      if (!item?.productVariantId) {
+        skipped += 1;
+        continue;
+      }
+      addItem({
+        variantId: Number(item.productVariantId),
+        quantity: Number(item.quantity || 1),
+        snapshot: {
+          variantId: Number(item.productVariantId),
+          productName: item.productName ?? "",
+          variantName: item.variantName ?? "",
+          sku: item.sku ?? "",
+          price: item.unitPrice ?? 0,
+        },
+      });
+      restored += 1;
+    }
+    if (!restored) {
+      toast.info("Those items are no longer available.");
+      return;
+    }
+    toast.success(
+      skipped
+        ? `${restored} item${restored === 1 ? "" : "s"} restored — ${skipped} no longer available.`
+        : "Items added back to your cart."
+    );
+    await navigateTo("/checkout");
+  } finally {
+    reordering.value = false;
   }
 }
 
@@ -154,7 +199,8 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
             </span>
             <div>
               <p class="m3-title-sm">This order was cancelled</p>
-              <p class="m3-body-sm mt-0.5 opacity-80">No charge was kept — reach out if you need help reordering.</p>
+              <p v-if="order.paymentStatus === 'paid'" class="m3-body-sm mt-0.5 opacity-80">You were charged for this order — our team will process your refund. Reach out if you need help.</p>
+              <p v-else class="m3-body-sm mt-0.5 opacity-80">No charge was kept — reach out if you need help reordering.</p>
             </div>
           </div>
           <ol v-else class="space-y-0">
@@ -249,10 +295,15 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
       </section>
 
       <div class="mt-6 flex flex-col gap-3 sm:flex-row">
-        <NuxtLink to="/menu" class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">
+        <button
+          type="button"
+          :disabled="reordering"
+          class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          @click="reorder"
+        >
           <M3Icon name="restaurant_menu" :size="18" />
-          Order again
-        </NuxtLink>
+          {{ reordering ? "Restoring…" : "Order again" }}
+        </button>
         <NuxtLink to="/contact" class="inline-flex items-center justify-center gap-2 rounded-full border border-border px-8 py-3.5 text-xs font-medium uppercase tracking-widest transition-colors hover:bg-secondary-container/60">
           Need help?
         </NuxtLink>

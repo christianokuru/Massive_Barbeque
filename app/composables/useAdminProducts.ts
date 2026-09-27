@@ -66,7 +66,10 @@ export function useAdminProducts() {
   async function fetchProducts() {
     pending.value = true;
     try {
-      const data = await $fetch<{ products: AdminProduct[] }>("/api/admin/products");
+      // Explicit high limit: the console grids the whole catalog.
+      const data = await $fetch<{ products: AdminProduct[] }>("/api/admin/products", {
+        params: { limit: 1000 },
+      });
       products.value = data.products ?? [];
     } catch (e: any) {
       toast.error(apiErrorMessage(e, "Could not load products."));

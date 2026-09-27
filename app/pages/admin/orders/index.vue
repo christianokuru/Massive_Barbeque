@@ -15,7 +15,8 @@ const requestHeaders = useRequestHeaders(["cookie"]);
 // Full archive: tabs, search, and bulk actions live here.
 // The dashboard home shows only the action queue.
 const { data: ordersData, refresh: refreshOrders } = await useAsyncData("admin-orders", () =>
-  $fetch<{ orders: any[] }>("/api/admin/orders", { headers: requestHeaders }).then((r) => r.orders).catch(() => [])
+  // Explicit high limit: tabs/search/bulk must see the whole dataset.
+  $fetch<{ orders: any[] }>("/api/admin/orders", { headers: requestHeaders, params: { limit: 1000 } }).then((r) => r.orders).catch(() => [])
 );
 
 const orderRows = computed<OrderRow[]>(() =>

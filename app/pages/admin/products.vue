@@ -16,6 +16,7 @@ await useAsyncData("admin-products", async () => {
     // SSR has no browser session; forward the request cookies instead.
     const data = await $fetch<{ products: any[] }>("/api/admin/products", {
       headers: requestHeaders,
+      params: { limit: 1000 },
     }).catch(() => ({ products: [] }));
     products.value = data.products ?? [];
   } else {

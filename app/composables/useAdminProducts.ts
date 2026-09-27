@@ -115,38 +115,36 @@ export function useAdminProducts() {
     return data.url;
   }
 
-  async function syncVariants(productId: number, next: AdminProductVariant[], prev: AdminProductVariant[]) {
+  // Sequential, non-transactional by Supabase-client nature: every op is
+  // attempted, failures are counted and reported (never silent), so a
+  // mid-loop failure degrades to "some variants need a retry" instead of
+  // an unknown half-applied state. Returns the failure count.
+  async function syncVariants(productId: number, next: AdminProductVariant[], prev: AdminProductVariant[]): Promise<number> {
     const prevById = new Map((prev ?? []).filter((v) => v.id != null).map((v) => [Number(v.id), v]));
     const nextIds = new Set((next ?? []).filter((v) => v.id != null).map((v) => Number(v.id)));
+    let failed = 0;
+    const attempt = async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch {
+        failed += 1;
+      }
+    };
 
     // Removed variants.
     for (const [id] of prevById) {
       if (!nextIds.has(id)) {
-        await $fetch(`/api/admin/variants/${id}`, { method: "DELETE" });
+        await attempt(() => $fetch(`/api/admin/variants/${id}`, { method: "DELETE" }));
       }
     }
     // Added + changed variants.
     for (const variant of next ?? []) {
       if (variant.id == null) {
-        await $fetch("/api/admin/variants", {
-          method: "POST",
-          body: {
-            productId,
-            name: variant.name,
-            sku: variant.sku,
-            price: variant.price,
-            comparePrice: variant.comparePrice || null,
-            inventoryQty: Number(variant.inventoryQty ?? 0),
-            weight: variant.weight || null,
-            isActive: variant.isActive !== false,
-          },
-        });
-      } else {
-        const original = prevById.get(Number(variant.id));
-        if (original && variantKey(original) !== variantKey(variant)) {
-          await $fetch(`/api/admin/variants/${variant.id}`, {
-            method: "PUT",
+        await attempt(() =>
+          $fetch("/api/admin/variants", {
+            method: "POST",
             body: {
+              productId,
               name: variant.name,
               sku: variant.sku,
               price: variant.price,
@@ -155,10 +153,29 @@ export function useAdminProducts() {
               weight: variant.weight || null,
               isActive: variant.isActive !== false,
             },
-          });
+          })
+        );
+      } else {
+        const original = prevById.get(Number(variant.id));
+        if (original && variantKey(original) !== variantKey(variant)) {
+          await attempt(() =>
+            $fetch(`/api/admin/variants/${variant.id}`, {
+              method: "PUT",
+              body: {
+                name: variant.name,
+                sku: variant.sku,
+                price: variant.price,
+                comparePrice: variant.comparePrice || null,
+                inventoryQty: Number(variant.inventoryQty ?? 0),
+                weight: variant.weight || null,
+                isActive: variant.isActive !== false,
+              },
+            })
+          );
         }
       }
     }
+    return failed;
   }
 
   async function saveProduct(form: {
@@ -224,8 +241,14 @@ export function useAdminProducts() {
       for (const imageId of form.removedImageIds ?? []) {
         await $fetch(`/api/admin/product-images/${imageId}`, { method: "DELETE" });
       }
-      await syncVariants(Number(id), form.variants, editingProduct.value?.variants ?? []);
-      toast.success("Product updated.");
+      const variantFailures = await syncVariants(Number(id), form.variants, editingProduct.value?.variants ?? []);
+      if (variantFailures > 0) {
+        toast.warning(
+          `Product updated, but ${variantFailures} variant change${variantFailures === 1 ? "" : "s"} failed — review the variants and retry.`
+        );
+      } else {
+        toast.success("Product updated.");
+      }
     }
     closeDialog();
     await fetchProducts();

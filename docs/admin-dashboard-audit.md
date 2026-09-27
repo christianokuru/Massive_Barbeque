@@ -22,12 +22,15 @@ see "Test plan" per item. Suggested build order is at the bottom.
 
 ## A. Admin home (`app/pages/admin/index.vue`)
 
-- [ ] **A1. Wrong login redirect on all admin pages.** Signed-out client guard
+- [x] **A1. Wrong login redirect on all admin pages.** Signed-out client guard
   goes to `/login` (customer door); `admin` middleware uses `/admin/login`.
   Files: `admin/index.vue:19-22`, `admin/orders.vue:7`, `admin/products.vue:12`,
   `admin/orders/[id].vue:8`, `admin/admins.vue:9`.
   _Test: middleware test — guest navigating `/admin/*` lands `/admin/login`;
   non-admin lands `/`._
+  **Resolved 2026-09-20 via PERF:** in-page guards removed entirely;
+  middleware is the single guard and routes guests to `/admin/login`
+  (verified: no `/login` redirects remain in `app/pages/admin/**`).
 - [x] **A2. `activeProducts` stat caps at 50.** Counts via public
   `GET /api/products` (limit-clamped, active-only). Derive from the admin
   product list or a count endpoint instead. (`admin/index.vue:30-32`)
@@ -141,15 +144,21 @@ see "Test plan" per item. Suggested build order is at the bottom.
 
 ## E. Admin governance UI (`admin/admins.vue`, `NavMain`, `NavUser`)
 
-- [ ] **E1. Stale demote copy.** Page + toast say session survives until
+- [x] **E1. Stale demote copy.** Page + toast say session survives until
   re-login; demote revokes immediately (`index.delete.ts:48-52`). Reword both.
   (`admins.vue:104-107`, `admins.vue:89`)
   _Test: copy asserts immediate revocation (static review)._
-- [ ] **E2. Invites can't be revoked.** Add revoke button + DELETE endpoint.
+  **Done 2026-09-20:** copy + toast now state immediate revocation.
+- [x] **E2. Invites can't be revoked.** Add revoke button + DELETE endpoint.
   _Test: revoked invite no longer auto-stamps on signup._
-- [ ] **E3. Staff logout lands on customer `/login`.** Should land
+  **Done 2026-09-20:** `DELETE /api/admin/admins/invite` (owner-only,
+  rate-limited, 404 when absent, audited as `invite_revoked` — new migration
+  `0006_invite_revoke_audit.sql` must be applied in SQL Editor); UI two-click
+  Revoke per invite row. Endpoint path needs live DB (manual test).
+- [x] **E3. Staff logout lands on customer `/login`.** Should land
   `/admin/login`. (`NavUser.vue:37-40`)
   _Test: admin logout navigates `/admin/login`._
+  **Done 2026-09-20.**
 - [ ] **E4. Admins link flashes for owners.** `isOwner` fetched on mount
   (`NavMain.vue:23-25`). Hydrate or skeleton.
   _Test: none (visual) — verify manually._

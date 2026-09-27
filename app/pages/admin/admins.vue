@@ -25,6 +25,7 @@ const forbidden = ref(false);
 const email = ref("");
 const busy = ref(false);
 const confirmDemote = ref<string | null>(null);
+const confirmRevoke = ref<string | null>(null);
 
 const requestHeaders = useRequestHeaders(["cookie"]);
 
@@ -82,7 +83,7 @@ async function demote(target: string) {
   busy.value = true;
   try {
     await $fetch("/api/admin/admins", { method: "DELETE", body: { email: target } });
-    toast.success(`${target} demoted. They lose access on next sign-in.`);
+    toast.success(`${target} demoted. Their sessions were revoked immediately.`);
     await load();
   } catch (e: any) {
     toast.error(e?.data?.statusMessage || "Could not demote user.");
@@ -98,8 +99,8 @@ async function demote(target: string) {
       <p class="text-xs font-medium uppercase tracking-[0.4em] text-primary">Owner only</p>
       <h1 class="mt-2 text-3xl font-bold">Admins</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        Admins stay admins until you demote them here. Demoted accounts keep
-        their current session until they sign out and back in.
+        Admins stay admins until you demote them here. Demoting revokes their
+        sessions immediately.
       </p>
     </div>
 
@@ -167,8 +168,20 @@ async function demote(target: string) {
           :key="i.email"
           class="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-card p-4"
         >
-          <p class="truncate text-sm">{{ i.email }}</p>
-          <p class="shrink-0 text-xs text-muted-foreground">applies on signup</p>
+          <div class="min-w-0">
+            <p class="truncate text-sm">{{ i.email }}</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">applies on signup</p>
+          </div>
+          <button
+            type="button"
+            :disabled="busy"
+            :title="confirmRevoke === i.email ? 'Click again to confirm' : 'Revoke invite'"
+            class="shrink-0 rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-widest transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            :class="confirmRevoke === i.email ? 'border-destructive bg-destructive text-white' : 'border-destructive/50 text-destructive hover:bg-destructive/10'"
+            @click="revokeInvite(i.email)"
+          >
+            {{ confirmRevoke === i.email ? "Confirm?" : "Revoke" }}
+          </button>
         </li>
       </ul>
     </template>

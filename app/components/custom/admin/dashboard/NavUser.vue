@@ -36,7 +36,8 @@ const initials = computed(() => {
 
 async function handleLogout() {
   await logout();
-  await navigateTo("/login");
+  // Staff console: land back at the staff door, not customer login.
+  await navigateTo("/admin/login");
 }
 </script>
 

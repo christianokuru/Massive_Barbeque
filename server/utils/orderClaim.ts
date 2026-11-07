@@ -3,11 +3,21 @@ import { getServiceSupabase } from "~~/server/utils/supabase";
 /**
  * Claim guest orders (user_id IS NULL) whose customer_email matches the
  * authenticated user's email (case-insensitive exact). Called after
- * successful login/register once email ownership is proven via password.
- * Idempotent — already-claimed rows are not touched.
+ * successful login/register. Idempotent — already-claimed rows are not
+ * touched.
+ *
+ * Requires a CONFIRMED email: a password only proves someone owns the
+ * account, not the inbox. Without this check, anyone could sign up with a
+ * buyer's email (when Supabase email confirmation is off) and read their
+ * past orders — name, phone and home address.
  */
-export async function claimGuestOrders(userId: string, email: string): Promise<number> {
+export async function claimGuestOrders(
+  user: { id?: string | null; email?: string | null; email_confirmed_at?: string | null } | null | undefined
+): Promise<number> {
+  const userId = user?.id;
+  const email = user?.email;
   if (!userId || !email) return 0;
+  if (!user?.email_confirmed_at) return 0;
   const normalized = email.trim().toLowerCase();
   if (!normalized) return 0;
 

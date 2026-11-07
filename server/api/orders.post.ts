@@ -15,6 +15,8 @@ import crypto from "crypto";
 // Writes go through the service role: RLS carries no customer insert
 // policy for orders, and every value written here is server-derived
 // (identity from the verified session, prices from the database).
+const PICKUP_GRACE_MS = 5 * 60 * 1000;
+
 const orderItemSchema = z.object({
   variantId: z.number().int().positive(),
   quantity: z.number().int().min(1).max(99),
@@ -45,6 +47,11 @@ const orderSchema = z
       .optional()
       .refine((v) => v === undefined || Number.isFinite(Date.parse(v)), {
         message: "Invalid pickup time",
+      })
+      // Any future time (small grace for clock differences between the
+      // buyer's device and the server).
+      .refine((v) => v === undefined || Date.parse(v) > Date.now() - PICKUP_GRACE_MS, {
+        message: "Pickup time must be in the future",
       }),
     notes: z.string().max(2000).optional(),
     paymentMethod: z.enum(["paystack", "flutterwave"]),
@@ -54,6 +61,11 @@ const orderSchema = z
   .refine((data) => data.fulfillmentType === "pickup" || data.deliveryAddress, {
     message: "Delivery address is required for delivery orders",
     path: ["deliveryAddress"],
+  })
+  // The kitchen needs to know when a pickup order will be collected.
+  .refine((data) => data.fulfillmentType === "delivery" || !!data.pickupTime, {
+    message: "Pickup time is required for pickup orders",
+    path: ["pickupTime"],
   });
 
 export default defineEventHandler(async (event) => {
@@ -153,7 +165,11 @@ export default defineEventHandler(async (event) => {
               postal_code: body.deliveryAddress.postalCode ?? null,
             }
           : null,
-        pickup_time: body.pickupTime ? new Date(body.pickupTime).toISOString() : null,
+        // Pickup time only means something for pickup orders.
+        pickup_time:
+          body.fulfillmentType === "pickup" && body.pickupTime
+            ? new Date(body.pickupTime).toISOString()
+            : null,
         notes: body.notes || null,
         payment_method: body.paymentMethod,
         payment_status: "pending",
@@ -174,7 +190,15 @@ export default defineEventHandler(async (event) => {
         total_price: l.total.toFixed(2),
       }))
     );
-    if (orderItemsError) throw orderItemsError;
+    if (orderItemsError) {
+      // No transaction across the two inserts: remove the empty order so
+      // a half-saved order (no items) never reaches the kitchen or admin.
+      const { error: cleanupError } = await supabase.from("orders").delete().eq("id", newOrder.id);
+      if (cleanupError) {
+        console.error(`Order ${newOrder.id} left without items (cleanup failed):`, cleanupError.message || cleanupError);
+      }
+      throw orderItemsError;
+    }
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")
@@ -205,7 +229,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error?.message || "Failed to create order",
+      statusMessage: "Failed to create order. Please try again.",
     });
   }
 });

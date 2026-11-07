@@ -102,6 +102,8 @@ export function toPayment(row: any) {
     currency: row.currency,
     status: row.status,
     paidAt: row.paid_at,
+    // null | 'requesting' | 'pending' | 'done' (migration 0012)
+    refundStatus: row.refund_status ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requireAdmin } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
-import { ADMIN_EDITABLE_PAYMENT_STATUSES, canTransitionOrder } from "~~/shared/utils/orderStatus";
+import { canAdminSetPaymentStatus, canTransitionOrder } from "~~/shared/utils/orderStatus";
 import { auditAdminAction } from "~~/server/utils/adminGovernance";
 import { getClientIp } from "~~/server/utils/clientIp";
 
@@ -25,20 +25,10 @@ export default defineEventHandler(async (event) => {
 
     const body = await readValidatedBody(event, orderStatusSchema.parse);
 
-    // `paid` is webhook-only: no admin (or compromised admin session)
-    // may mint it by hand. The editable set is defined once in
-    // shared/utils/orderStatus.ts so UI and API can't drift apart.
-    if (body.paymentStatus && !(ADMIN_EDITABLE_PAYMENT_STATUSES as readonly string[]).includes(body.paymentStatus)) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Paid status is set by payment webhooks only.",
-      });
-    }
-
     // Enforce the kitchen pipeline — no skips, no resurrections.
     const { data: current, error: currentError } = await supabase
       .from("orders")
-      .select("status")
+      .select("status, payment_status")
       .eq("id", orderId)
       .single();
     if (currentError || !current) {
@@ -51,12 +41,25 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    // Money states are provider-only: `paid` comes from verified webhooks,
+    // `refunded` from the refund endpoint, and a paid/refunded order's
+    // payment status can't be relabelled by hand (shared rule, also used
+    // by the admin UI).
+    const currentPayment = (current as any).payment_status;
+    const paymentChanging = !!body.paymentStatus && body.paymentStatus !== currentPayment;
+    if (paymentChanging) {
+      const check = canAdminSetPaymentStatus(currentPayment, body.paymentStatus);
+      if (!check.ok) {
+        throw createError({ statusCode: 400, statusMessage: check.reason });
+      }
+    }
+
     const updateData: Record<string, any> = {
       status: body.status,
       updated_at: new Date().toISOString(),
     };
 
-    if (body.paymentStatus) {
+    if (paymentChanging) {
       updateData.payment_status = body.paymentStatus;
     }
 
@@ -65,10 +68,17 @@ export default defineEventHandler(async (event) => {
     // untouched — a status change without a trail can never commit.
     // (The reverse — a trail for a write that then fails — is the safe
     // direction: it records intent, never a silent change.)
+    // The audit target records both changes so a payment relabel is never
+    // hidden inside a plain status change.
+    const auditTarget = [
+      orderId,
+      `status:${(current as any).status}->${body.status}`,
+      paymentChanging ? `payment:${currentPayment}->${body.paymentStatus}` : "",
+    ].filter(Boolean).join(" ");
     await auditAdminAction(
       user.email || null,
       "status_change",
-      orderId,
+      auditTarget,
       getClientIp(event)
     );
 
@@ -103,7 +113,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error?.message || "Failed to update order status",
+      statusMessage: "Failed to update order status",
     });
   }
 });

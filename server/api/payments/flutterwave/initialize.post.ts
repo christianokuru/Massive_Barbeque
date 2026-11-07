@@ -4,6 +4,12 @@ import { confirmUrl } from "~~/server/utils/siteUrl";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
 import { assertOrderAccess } from "~~/server/utils/orderAccess";
+import { canStartPayment } from "~~/shared/utils/orderStatus";
+
+// Pending attempts older than this are abandoned and stop counting
+// toward the per-order cap (otherwise 5 abandoned tries lock an order
+// out of payment forever).
+const PENDING_WINDOW_MS = 60 * 60 * 1000;
 
 // The amount is NEVER taken from the client: it is loaded from the
 // server-priced order (see paystack sibling for the attack).
@@ -41,8 +47,10 @@ export default defineEventHandler(async (event) => {
     const supabase = getServiceSupabase();
     // Ownership first: strangers can't init payment on (or probe) orders.
     const { order } = await assertOrderAccess(event, body.orderId, body.guestToken);
-    if (order.payment_status === "paid") {
-      throw createError({ statusCode: 400, statusMessage: "Order is already paid." });
+    // Never take new money for paid, refunded, cancelled or completed orders.
+    const payable = canStartPayment(order.status, order.payment_status);
+    if (!payable.ok) {
+      throw createError({ statusCode: 400, statusMessage: payable.reason });
     }
     if (order.payment_method !== "flutterwave") {
       throw createError({ statusCode: 400, statusMessage: "Order is not a Flutterwave order." });
@@ -53,7 +61,8 @@ export default defineEventHandler(async (event) => {
       .select("id", { count: "exact", head: true })
       .eq("order_id", body.orderId)
       .eq("provider", "flutterwave")
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .gte("created_at", new Date(Date.now() - PENDING_WINDOW_MS).toISOString());
     if ((pendingCount ?? 0) >= 5) {
       throw createError({
         statusCode: 429,
@@ -91,42 +100,56 @@ export default defineEventHandler(async (event) => {
       },
     };
 
-    // Call Flutterwave API to initialize transaction
-    const response = await fetch('https://api.flutterwave.com/v3/payments', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.flutterwaveSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+    // Record the pending payment BEFORE the buyer can pay: the webhook
+    // only credits payments it can find, so if this write fails we stop
+    // here instead of taking money we can't match to the order.
+    const { error: recordError } = await supabase.from("payments").insert({
+      order_id: body.orderId,
+      provider: "flutterwave",
+      reference: txRef,
+      amount,
+      currency: "NGN",
+      status: "pending",
+      updated_at: new Date().toISOString(),
     });
-
-    const data = await response.json();
-
-    if (data.status !== 'success') {
+    if (recordError) {
+      console.error("Flutterwave pending-payment record failed:", recordError.message || recordError);
       throw createError({
-        statusCode: 400,
-        statusMessage: data.message || 'Failed to initialize payment',
+        statusCode: 503,
+        statusMessage: "Couldn't start payment right now. Please try again.",
       });
     }
 
-    // Record the pending payment so the webhook can confirm the order.
-    // NOTE: v3 /payments responds with `{ link }` only — the tx_ref is
-    // the one we generated above, not anything in the response.
-    await supabase
-      .from("payments")
-      .upsert(
-        {
-          order_id: body.orderId,
-          provider: "flutterwave",
-          reference: txRef,
-          amount,
-          currency: "NGN",
-          status: "pending",
-          updated_at: new Date().toISOString(),
+    // Call Flutterwave API to initialize transaction. v3 /payments
+    // responds with `{ link }` only — the tx_ref is ours.
+    let data: any = null;
+    try {
+      const response = await fetch('https://api.flutterwave.com/v3/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.flutterwaveSecretKey}`,
+          'Content-Type': 'application/json',
         },
-        { onConflict: "reference" }
-      );
+        body: JSON.stringify(payload),
+      });
+      data = await response.json().catch(() => null);
+    } catch {
+      data = null;
+    }
+
+    if (data?.status !== 'success' || !data?.data?.link) {
+      // Nothing can be paid on this reference — retire it so it doesn't
+      // count toward the pending cap.
+      await supabase
+        .from("payments")
+        .update({ status: "failed", updated_at: new Date().toISOString() })
+        .eq("reference", txRef)
+        .eq("status", "pending");
+      throw createError({
+        statusCode: 502,
+        statusMessage: data?.message || 'Failed to initialize payment',
+      });
+    }
 
     return {
       success: true,
@@ -147,7 +170,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      statusMessage: error.message || 'Failed to initialize payment',
+      statusMessage: 'Failed to initialize payment',
     });
   }
 });

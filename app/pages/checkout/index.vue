@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { assertGatewayUrl } from "~~/shared/utils/payments";
+import { saveGuestToken } from "@/utils/guestOrderToken";
 import { z } from "zod";
 
 useSeoMeta({ title: "Checkout", robots: "noindex, nofollow" });
@@ -21,6 +22,8 @@ const form = ref({
   city: "Lagos",
   state: "Lagos",
   postalCode: "",
+  // <input type="datetime-local"> value (buyer's local time), pickup only.
+  pickupTime: "",
 });
 const error = ref("");
 const placing = ref(false);
@@ -79,11 +82,31 @@ function nextFromFulfillment() {
     error.value = "Enter a delivery address.";
     return;
   }
+  if (form.value.fulfillmentType === "pickup") {
+    const when = Date.parse(form.value.pickupTime);
+    if (!Number.isFinite(when)) {
+      error.value = "Choose a pickup time.";
+      return;
+    }
+    if (when <= Date.now()) {
+      error.value = "Pickup time must be in the future.";
+      return;
+    }
+  }
   step.value = 3;
   highestStep.value = 3;
 }
 
 const totalNaira = (n: number) => `₦${n.toLocaleString()}`;
+
+// Earliest pickup the picker offers: now, in the buyer's local time
+// (datetime-local wants "YYYY-MM-DDTHH:mm"). Set on mount to avoid an
+// SSR/client time mismatch.
+const minPickup = ref("");
+function localInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // Saved addresses: logged-in buyers get their default pre-filled into
 // untouched fields (guests 401 here — silently skipped, manual entry).
@@ -93,6 +116,7 @@ const totalNaira = (n: number) => `₦${n.toLocaleString()}`;
 const configuredFee = ref(DELIVERY_FEE_FLAT);
 
 onMounted(async () => {
+  minPickup.value = localInputValue(new Date());
   try {
     const settings = await $fetch<{ deliveryFee: number }>("/api/settings/public");
     if (Number.isFinite(settings.deliveryFee) && settings.deliveryFee >= 0) {
@@ -123,15 +147,39 @@ onMounted(async () => {
   }
 });
 
+// The order created by this checkout. If starting payment fails, "try
+// again" reuses it (only retrying the payment) instead of creating a
+// duplicate order. Any change to the cart or form starts a fresh order.
+const placedOrder = ref<{ order: any; guestToken?: string; key: string } | null>(null);
+
+function pickupIso(): string | undefined {
+  if (form.value.fulfillmentType !== "pickup") return undefined;
+  const when = Date.parse(form.value.pickupTime);
+  return Number.isFinite(when) ? new Date(when).toISOString() : undefined;
+}
+
 async function placeOrder() {
   error.value = "";
   if (!items.value.length) {
     error.value = "Your cart is empty.";
     return;
   }
+  if (form.value.fulfillmentType === "pickup") {
+    const when = Date.parse(form.value.pickupTime);
+    if (!Number.isFinite(when) || when <= Date.now()) {
+      error.value = "Choose a pickup time in the future.";
+      step.value = 2;
+      return;
+    }
+  }
   placing.value = true;
   try {
-    const order = await $fetch<{ order: any; guestToken?: string }>("/api/orders", {
+    const orderKey = JSON.stringify({
+      items: items.value.map((i) => [i.variantId, i.quantity]),
+      form: form.value,
+    });
+    const reuse = placedOrder.value?.key === orderKey ? placedOrder.value : null;
+    const order = reuse ?? await $fetch<{ order: any; guestToken?: string }>("/api/orders", {
       method: "POST",
       body: {
         // Ids + quantities only — the server prices from the database.
@@ -152,26 +200,21 @@ async function placeOrder() {
                 postalCode: form.value.postalCode || undefined,
               }
             : undefined,
+        pickupTime: pickupIso(),
         notes: form.value.notes || undefined,
         paymentMethod: form.value.paymentMethod,
       },
     });
+    placedOrder.value = { order: order.order, guestToken: order.guestToken, key: orderKey };
     // Don't clear the cart until payment init succeeds — if it fails,
     // the flow UI (and the error below) must stay visible.
 
     const isPaystack = form.value.paymentMethod === "paystack";
     // Guest orders need this token for every later step (order reads,
     // pay init/verify). Logged-in buyers don't get one — the session
-    // is their proof. sessionStorage survives the gateway round-trip
-    // in the same tab.
-    if (order.guestToken) {
-      try {
-        sessionStorage.setItem(`mb:guest:${order.order.id}`, order.guestToken);
-      } catch {
-        // Private-mode storage failure: the confirm page will show the
-        // order as not found for guests — acceptable, no crash.
-      }
-    }
+    // is their proof. Kept in localStorage for the token's 30 days so it
+    // survives the gateway round-trip in any tab.
+    if (order.guestToken) saveGuestToken(order.order.id, order.guestToken);
     const payment = await $fetch<{ authorization_url?: string; link?: string }>(
       isPaystack ? "/api/payments/paystack/initialize" : "/api/payments/flutterwave/initialize",
       {
@@ -288,6 +331,17 @@ async function placeOrder() {
                 <span class="mt-0.5 block text-sm text-muted-foreground">Free · ready fresh</span>
               </button>
             </div>
+            <label v-if="form.fulfillmentType === 'pickup'" class="block">
+              <span class="mb-1 block text-sm font-medium">Pickup time *</span>
+              <input
+                v-model="form.pickupTime"
+                type="datetime-local"
+                required
+                :min="minPickup"
+                class="w-full rounded-xl border border-border bg-card px-4 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span class="mt-1 block text-xs text-muted-foreground">When you'll collect your order.</span>
+            </label>
             <div v-if="form.fulfillmentType === 'delivery'" class="grid gap-4">
               <label class="block">
                 <span class="mb-1 block text-sm font-medium">Delivery address *</span>

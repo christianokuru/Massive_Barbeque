@@ -102,8 +102,8 @@ export default defineEventHandler(async (event) => {
     }
 
     // Link any guest orders that used the same email before this account
-    // existed. Email ownership is proven by the successful password check above.
-    await claimGuestOrders(data.user.id, data.user.email || body.email);
+    // existed — only once the email itself is confirmed (see orderClaim).
+    await claimGuestOrders(data.user);
 
     // Session cookies are set on the response by the Supabase server
     // client — the browser stays logged in across SSR and client nav.
@@ -119,10 +119,15 @@ export default defineEventHandler(async (event) => {
       });
     }
     if (error?.statusCode) throw error;
+    // Supabase Auth's own 4xx answers (e.g. "Password should be at least
+    // 6 characters") are meant for the user; anything else stays generic.
+    if (error?.name === "AuthApiError" && error?.status >= 400 && error?.status < 500) {
+      throw createError({ statusCode: 400, statusMessage: error.message });
+    }
 
     throw createError({
       statusCode: 500,
-      statusMessage: error?.message || "Internal Server Error",
+      statusMessage: "Sign-in failed. Please try again.",
     });
   }
 });

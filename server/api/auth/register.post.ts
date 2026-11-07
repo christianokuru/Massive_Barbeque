@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
         });
       }
       await ensureAdminRole(signInData.user.id, signInData.user.email || body.email);
-      await claimGuestOrders(signInData.user.id, signInData.user.email || body.email);
+      await claimGuestOrders(signInData.user);
       return { success: true, user: signInData.user, signedInInstead: true };
     }
 
@@ -85,7 +85,7 @@ export default defineEventHandler(async (event) => {
     // If email confirmation is required, the user isn't logged in yet —
     // they'll claim on first real login after clicking the link.
     if (data.session) {
-      await claimGuestOrders(data.user.id, data.user.email || body.email);
+      await claimGuestOrders(data.user);
     }
 
     // No session here means "Confirm email" is enabled in Supabase Auth
@@ -106,10 +106,15 @@ export default defineEventHandler(async (event) => {
       });
     }
     if (error?.statusCode) throw error;
+    // Supabase Auth's own 4xx answers (e.g. "Password should be at least
+    // 6 characters") are meant for the user; anything else stays generic.
+    if (error?.name === "AuthApiError" && error?.status >= 400 && error?.status < 500) {
+      throw createError({ statusCode: 400, statusMessage: error.message });
+    }
 
     throw createError({
       statusCode: 500,
-      statusMessage: error?.message || "Internal Server Error",
+      statusMessage: "Registration failed. Please try again.",
     });
   }
 });

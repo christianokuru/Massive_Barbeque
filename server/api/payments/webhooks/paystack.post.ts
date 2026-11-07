@@ -61,23 +61,37 @@ export default defineEventHandler(async (event) => {
       }
       const supabase = getServiceSupabase();
 
-      const { data: payment } = await supabase
+      // Read errors throw → 500 → the provider retries later. Never
+      // acknowledge an event we couldn't check.
+      const { data: payment, error: paymentError } = await supabase
         .from("payments")
         .select("order_id, status")
         .eq("reference", paymentData.reference)
         .maybeSingle();
+      if (paymentError) throw paymentError;
 
       if (payment) {
-        // Idempotency: only transition pending → paid, never re-write.
-        if (payment.status === "paid") return { success: true };
+        if (payment.status === "refunded") return { success: true };
+
+        const { data: order, error: orderError } = await supabase
+          .from("orders")
+          .select("id, total, status, payment_status")
+          .eq("id", payment.order_id)
+          .maybeSingle();
+        if (orderError) throw orderError;
+
+        // Idempotency: fully recorded already (payment AND order) → done.
+        // A payment marked paid whose order update failed earlier falls
+        // through so this retry can finish the job.
+        const orderSettled =
+          !order ||
+          order.payment_status === "paid" ||
+          order.payment_status === "refunded" ||
+          isTerminalOrderStatus(order.status);
+        if (payment.status === "paid" && orderSettled) return { success: true };
 
         // Amount guard: never mark an order paid for less than its total
         // (Paystack reports kobo). Mismatches are logged, not retried.
-        const { data: order } = await supabase
-          .from("orders")
-          .select("id, total, status")
-          .eq("id", payment.order_id)
-          .single();
         const expectedKobo = order ? Math.round(Number(order.total) * 100) : NaN;
         if (
           !order ||
@@ -105,6 +119,11 @@ export default defineEventHandler(async (event) => {
           }
         );
         const verifyData = await verifyRes.json().catch(() => null);
+        // Provider outage / unreadable answer proves nothing either way:
+        // 500 so the provider redelivers later, rather than dropping it.
+        if (!verifyData || verifyRes.status >= 500) {
+          throw new Error("Paystack re-verify unavailable");
+        }
         const verified =
           verifyData?.status === true &&
           verifyData?.data?.status === "success" &&
@@ -116,15 +135,20 @@ export default defineEventHandler(async (event) => {
           return { success: true };
         }
 
-        await supabase
-          .from("payments")
-          .update({
-            status: "paid",
-            raw: paymentData,
-            paid_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("reference", paymentData.reference);
+        // Checked writes: a failure throws → 500 → the provider retries,
+        // instead of a silent "ok" that leaves a paid order stuck pending.
+        if (payment.status !== "paid") {
+          await supabase
+            .from("payments")
+            .update({
+              status: "paid",
+              raw: paymentData,
+              paid_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("reference", paymentData.reference)
+            .throwOnError();
+        }
 
         // Terminal guard: money truthfully records paid, but a late
         // payment must never resurrect a completed/cancelled order.
@@ -137,6 +161,8 @@ export default defineEventHandler(async (event) => {
           return { success: true };
         }
 
+        if (order.payment_status === "refunded") return { success: true };
+
         await supabase
           .from("orders")
           .update({
@@ -144,7 +170,8 @@ export default defineEventHandler(async (event) => {
             status: "confirmed",
             updated_at: new Date().toISOString(),
           })
-          .eq("id", payment.order_id);
+          .eq("id", payment.order_id)
+          .throwOnError();
       }
     }
 

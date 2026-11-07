@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
     console.error("Logout error:", error?.message || error);
     throw createError({
       statusCode: 500,
-      statusMessage: error?.message || "Internal Server Error",
+      statusMessage: "Sign-out failed. Please try again.",
     });
   }
 });

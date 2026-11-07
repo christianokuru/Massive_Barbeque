@@ -436,8 +436,8 @@ layout; the only `useProjects` consumer is `Home/Work.vue` itself. Also unused:
   order + email, `?token=`; denied → 404). UUID alone authorizes nothing.
 - `POST /api/orders` (§3.1): guest-friendly, service-role writes, zod caps
   (≤50 lines, qty 1–99, merged + capped at 99 per variant, string `.max()`
-  caps, delivery-requires-address, safe `pickupTime`), stock check against
-  `inventory_qty`, random `MB########` numbers, logged-in email forced from
+  caps, delivery-requires-address, pickup-requires-future-`pickupTime`), no
+  stock gate (`inventory_qty` informational), random `MB########` numbers, logged-in email forced from
   the session, `guestToken` issued for guest orders.
 
 ### 5.6 Contact

@@ -50,9 +50,53 @@ export function legalNextStatuses(from: OrderStatus): readonly OrderStatus[] {
  * The admin status endpoint enforces this same list — see
  * `server/api/admin/orders/[id].status.put.ts`.
  */
-export const ADMIN_EDITABLE_PAYMENT_STATUSES = ['pending', 'failed', 'refunded'] as const;
+export const ADMIN_EDITABLE_PAYMENT_STATUSES = ['pending', 'failed'] as const;
 
 export type AdminEditablePaymentStatus = (typeof ADMIN_EDITABLE_PAYMENT_STATUSES)[number];
+
+/**
+ * May an admin hand-change the payment status from `current` to `next`?
+ * Money states are locked: `paid` is minted only by verified webhooks and
+ * `refunded` only by the provider refund endpoint, and once an order is
+ * paid or refunded its payment status can't be relabelled by hand.
+ * Unpaid orders may move between `pending` and `failed`.
+ */
+export function canAdminSetPaymentStatus(
+  current: unknown,
+  next: unknown,
+): { ok: boolean; reason: string } {
+  if (current === next) return { ok: true, reason: '' };
+  if (current === 'paid' || current === 'refunded') {
+    return {
+      ok: false,
+      reason: `Payment is ${current} — it can only change through the payment provider (use the refund button).`,
+    };
+  }
+  if (!(ADMIN_EDITABLE_PAYMENT_STATUSES as readonly unknown[]).includes(next)) {
+    return {
+      ok: false,
+      reason: next === 'refunded'
+        ? 'Refunded is set by the refund button only.'
+        : 'Paid status is set by payment webhooks only.',
+    };
+  }
+  return { ok: true, reason: '' };
+}
+
+/**
+ * May a payment be started for this order? Paid, refunded, cancelled and
+ * completed orders must never take new money.
+ */
+export function canStartPayment(
+  status: unknown,
+  paymentStatus: unknown,
+): { ok: boolean; reason: string } {
+  if (paymentStatus === 'paid') return { ok: false, reason: 'Order is already paid.' };
+  if (paymentStatus === 'refunded') return { ok: false, reason: 'Order has been refunded.' };
+  if (status === 'cancelled') return { ok: false, reason: 'This order was cancelled — place a new order instead.' };
+  if (status === 'completed') return { ok: false, reason: 'This order is already completed.' };
+  return { ok: true, reason: '' };
+}
 
 /**
  * Split a bulk status change into orders that may legally move to `target`

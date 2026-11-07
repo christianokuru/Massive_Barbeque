@@ -3,6 +3,7 @@ import { getServiceSupabase } from "~~/server/utils/supabase";
 import { isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
+import { sendOrderConfirmationEmail } from "~~/server/utils/orderEmail";
 
 function signaturesEqual(a: string, b: string): boolean {
   const ba = Buffer.from(a, "utf8");
@@ -172,6 +173,11 @@ export default defineEventHandler(async (event) => {
           })
           .eq("id", payment.order_id)
           .throwOnError();
+
+        // Order is now paid: email the buyer. Runs once — a redelivered
+        // webhook returns early above because the order is already paid.
+        // Never throws, so an email problem can't trigger a redelivery.
+        await sendOrderConfirmationEmail(event, payment.order_id);
       }
     }
 

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import M3Icon from "@/components/M3Icon.vue";
-import { guestTokenForOrder as guestTokenFor } from "@/utils/guestOrderToken";
+import { guestTokenForOrder as guestTokenFor, saveGuestToken } from "@/utils/guestOrderToken";
 
 useSeoMeta({ title: "Order confirmation", robots: "noindex, nofollow" });
 
 const { isLoggedIn } = useAuth();
 const route = useRoute();
+const router = useRouter();
 const orderId = computed(() => route.query.order as string | undefined);
 // Paystack returns `reference`; Flutterwave returns `tx_ref` + `transaction_id` + `status`.
 const gatewayRef = computed(() => (route.query.reference ?? route.query.tx_ref) as string | undefined);
@@ -16,8 +17,8 @@ type State = "loading" | "verifying" | "paid" | "failed" | "received";
 const state = ref<State>("loading");
 const order = ref<any>(null);
 
-// Guest proof for order reads: issued at order-create, kept in
-// sessionStorage (survives the gateway round-trip in the same tab).
+// Guest proof for order reads: issued at order-create (or carried in the
+// confirmation email link), kept in localStorage for 30 days.
 // Logged-in buyers don't need it — the session is their proof.
 // (Shared helper — same-tab guest orders on the dashboard use it too.)
 
@@ -40,7 +41,10 @@ async function fetchOrder(id: string) {
    order on screen — paying for a cheap order must never render an
    expensive one as "confirmed". */
 async function verifyPayment(current: any) {
-  const provider = current?.payment_method === "flutterwave" ? "flutterwave" : "paystack";
+  // The order API returns camelCase (`paymentMethod`). Fall back to the
+  // Flutterwave-only return params when the order couldn't be read.
+  const method = current?.paymentMethod ?? (flwTransactionId.value ? "flutterwave" : "paystack");
+  const provider = method === "flutterwave" ? "flutterwave" : "paystack";
   try {
     if (provider === "flutterwave") {
       if (!flwTransactionId.value) return null;
@@ -73,6 +77,15 @@ async function verifyPayment(current: any) {
 }
 
 onMounted(async () => {
+  // Link from the confirmation email: it carries the guest's order pass.
+  // Save it, then drop it from the address bar so it isn't left in
+  // history or shared by copy-paste.
+  const linkToken = route.query.token;
+  if (typeof linkToken === "string" && linkToken && orderId.value) {
+    saveGuestToken(orderId.value, linkToken);
+    const { token: _drop, ...rest } = route.query;
+    router.replace({ query: rest });
+  }
   // Explicit cancellation from the gateway — no need to verify.
   if (flwStatus.value === "cancelled") {
     state.value = "failed";
@@ -92,7 +105,9 @@ onMounted(async () => {
       state.value = current ? "received" : "failed";
     }
   } else {
-    state.value = current ? "received" : "failed";
+    // No gateway return (e.g. opened from the confirmation email): show
+    // what the order itself says.
+    state.value = current ? (current.paymentStatus === "paid" ? "paid" : "received") : "failed";
   }
 });
 

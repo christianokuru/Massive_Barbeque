@@ -257,6 +257,9 @@ export default defineNuxtConfig({
     resendApiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.FROM_EMAIL,
     contactReceiverEmail: process.env.CONTACT_RECEIVER_EMAIL,
+    // Comma-separated inboxes told about each newly paid order. Empty →
+    // falls back to CONTACT_RECEIVER_EMAIL.
+    orderNotifyEmails: process.env.ORDER_NOTIFY_EMAILS,
     paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
     flutterwaveSecretKey: process.env.FLUTTERWAVE_SECRET_KEY,
     // Signs guest-order tokens (order reads, pay init/verify). Falls back

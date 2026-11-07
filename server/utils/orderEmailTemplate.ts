@@ -122,3 +122,88 @@ export function buildOrderConfirmationEmail({ order, orderUrl, appName }: OrderE
 
   return { subject, html, text };
 }
+
+/** Parse a comma/space-separated list of inboxes; drops junk entries. */
+export function parseEmailList(raw: unknown): string[] {
+  return String(raw ?? "")
+    .split(/[,\s;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))
+    .filter((e, i, all) => all.indexOf(e) === i);
+}
+
+export interface ShopEmailInput {
+  order: any;
+  /** Absolute link to the order in the admin console. */
+  adminUrl: string;
+  appName?: string;
+}
+
+/** "New paid order" alert for the shop: who, what, where/when, link. */
+export function buildShopOrderEmail({ order, adminUrl, appName }: ShopEmailInput): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const brand = appName || "Massive Barbeque";
+  const number = String(order?.order_number ?? "");
+  const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
+  const isPickup = order?.fulfillment_type === "pickup";
+  const pickupAt = formatLagosTime(order?.pickup_time);
+  const address = deliveryAddressLines(order?.delivery_address);
+  const when = isPickup ? `Pickup${pickupAt ? ` ${pickupAt}` : ""}` : "Delivery";
+
+  const subject = `New paid order ${number} — ${formatNaira(order?.total)} · ${when}`;
+
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top;white-space:nowrap;">${label}</td><td style="padding:4px 0;">${value}</td></tr>`;
+
+  const itemLines = items
+    .map(
+      (i) =>
+        `<li style="margin:2px 0;">${escapeHtml(i.quantity)} × ${escapeHtml(i.product_name)} (${escapeHtml(i.variant_name)}) — ${escapeHtml(formatNaira(i.total_price))}</li>`
+    )
+    .join("");
+
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f6f6f6;font-family:Arial,Helvetica,sans-serif;color:#111;">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">
+      <p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#c2410c;">${escapeHtml(brand)} · New order</p>
+      <h1 style="margin:8px 0 16px;font-size:22px;">${escapeHtml(number)} — ${escapeHtml(formatNaira(order?.total))} paid</h1>
+
+      <ul style="margin:0 0 16px;padding-left:18px;font-size:14px;">${itemLines}</ul>
+
+      <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:14px;">
+        ${row("Customer", escapeHtml(order?.customer_name))}
+        ${row("Phone", escapeHtml(order?.customer_phone))}
+        ${row("Email", escapeHtml(order?.customer_email))}
+        ${row(isPickup ? "Pickup" : "Deliver to", isPickup ? escapeHtml(pickupAt || "time not given") : address.map(escapeHtml).join("<br>"))}
+        ${order?.notes ? row("Notes", `<span style="white-space:pre-wrap;">${escapeHtml(order.notes)}</span>`) : ""}
+        ${row("Payment", escapeHtml(order?.payment_method || ""))}
+      </table>
+
+      <p style="margin:24px 0 0;">
+        <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#c2410c;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-size:14px;">Open in admin</a>
+      </p>
+      <p style="margin:16px 0 0;font-size:12px;color:#777;">Reply to this email to contact the customer.</p>
+    </div>
+  </body>
+</html>`;
+
+  const text = [
+    `New paid order ${number} — ${formatNaira(order?.total)}`,
+    "",
+    ...items.map((i) => `${i.quantity} x ${i.product_name} (${i.variant_name}) — ${formatNaira(i.total_price)}`),
+    "",
+    `Customer: ${order?.customer_name ?? ""}`,
+    `Phone: ${order?.customer_phone ?? ""}`,
+    `Email: ${order?.customer_email ?? ""}`,
+    isPickup ? `Pickup: ${pickupAt || "time not given"}` : `Deliver to: ${address.join(", ")}`,
+    ...(order?.notes ? [`Notes: ${order.notes}`] : []),
+    "",
+    `Open in admin: ${adminUrl}`,
+  ].join("\n");
+
+  return { subject, html, text };
+}

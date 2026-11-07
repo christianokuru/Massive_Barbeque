@@ -3,7 +3,7 @@ import M3Icon from "@/components/M3Icon.vue";
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
 import { toast } from "vue-sonner";
 import { deliveryAddressLines } from "~~/shared/utils/orderDisplay";
-import { canUserCancelOrder, isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
+import { canStartPayment, canUserCancelOrder } from "~~/shared/utils/orderStatus";
 import { assertGatewayUrl } from "~~/shared/utils/payments";
 import { guestTokenForOrder } from "@/utils/guestOrderToken";
 
@@ -18,10 +18,9 @@ const { data: order, refresh } = await useAsyncData(`order-${route.params.id}`, 
 
 // Resume payment: unpaid + not terminal. Cancelling: same rule the server
 // enforces (pending + unpaid), previewed here so dead buttons never show.
+// Same rule the payment endpoints enforce (shared/utils/orderStatus).
 const canResumePay = computed(
-  () =>
-    ["pending", "failed"].includes(order.value?.paymentStatus) &&
-    !isTerminalOrderStatus(order.value?.status)
+  () => !!order.value && canStartPayment(order.value.status, order.value.paymentStatus).ok
 );
 const cancelCheck = computed(() =>
   canUserCancelOrder(order.value?.status, order.value?.paymentStatus)

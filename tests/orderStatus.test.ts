@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_EDITABLE_PAYMENT_STATUSES, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, canUserCancelOrder, isTerminalOrderStatus, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
+import { ADMIN_EDITABLE_PAYMENT_STATUSES, canAdminSetPaymentStatus, canStartPayment, ATTENTION_STATUSES, ORDER_STATUSES, PAYMENT_STATUSES, canTransitionOrder, canUserCancelOrder, isTerminalOrderStatus, legalNextStatuses, planBulkStatusChange } from '../shared/utils/orderStatus';
 
 describe('status enums (Batch 5 contract)', () => {
   it('matches the statuses enforced by the admin API', () => {
@@ -73,12 +73,44 @@ describe('legalNextStatuses (admin dropdown source)', () => {
   });
 });
 
-describe('ADMIN_EDITABLE_PAYMENT_STATUSES (paid is webhook-only)', () => {
-  it('excludes paid but keeps every other payment state', () => {
+describe('ADMIN_EDITABLE_PAYMENT_STATUSES (money states are provider-only)', () => {
+  it('excludes paid and refunded', () => {
     expect([...ADMIN_EDITABLE_PAYMENT_STATUSES].sort()).toEqual(
-      [...PAYMENT_STATUSES].filter((s) => s !== 'paid').sort(),
+      [...PAYMENT_STATUSES].filter((s) => s !== 'paid' && s !== 'refunded').sort(),
     );
-    expect(ADMIN_EDITABLE_PAYMENT_STATUSES).not.toContain('paid');
+  });
+});
+
+describe('canAdminSetPaymentStatus', () => {
+  it('lets unpaid orders move between pending and failed', () => {
+    expect(canAdminSetPaymentStatus('pending', 'failed').ok).toBe(true);
+    expect(canAdminSetPaymentStatus('failed', 'pending').ok).toBe(true);
+  });
+  it('never lets an admin mint paid or refunded', () => {
+    expect(canAdminSetPaymentStatus('pending', 'paid').ok).toBe(false);
+    expect(canAdminSetPaymentStatus('pending', 'refunded').ok).toBe(false);
+  });
+  it('locks paid and refunded orders', () => {
+    expect(canAdminSetPaymentStatus('paid', 'pending').ok).toBe(false);
+    expect(canAdminSetPaymentStatus('paid', 'failed').ok).toBe(false);
+    expect(canAdminSetPaymentStatus('paid', 'refunded').ok).toBe(false);
+    expect(canAdminSetPaymentStatus('refunded', 'pending').ok).toBe(false);
+  });
+  it('treats re-sending the current value as a no-op', () => {
+    expect(canAdminSetPaymentStatus('paid', 'paid').ok).toBe(true);
+  });
+});
+
+describe('canStartPayment', () => {
+  it('allows unpaid live orders', () => {
+    expect(canStartPayment('pending', 'pending').ok).toBe(true);
+    expect(canStartPayment('confirmed', 'failed').ok).toBe(true);
+  });
+  it('blocks paid, refunded, cancelled and completed orders', () => {
+    expect(canStartPayment('confirmed', 'paid').ok).toBe(false);
+    expect(canStartPayment('cancelled', 'refunded').ok).toBe(false);
+    expect(canStartPayment('cancelled', 'pending').ok).toBe(false);
+    expect(canStartPayment('completed', 'pending').ok).toBe(false);
   });
 });
 

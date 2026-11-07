@@ -21,9 +21,6 @@ const refunding = ref(false);
 const paidPayment = computed(
   () => (order.value?.payments ?? []).find((p: any) => p.status === "paid") ?? null
 );
-// Record-only refund needs an explicit second click — setting `refunded`
-// relabels the row only; the money moves at the payment provider.
-const confirmRefund = ref(false);
 
 // Dropdowns derive from the shared pipeline truth — the server enforces
 // the same lists, so an option shown here can never 400 there. Falls back
@@ -34,10 +31,13 @@ const availableStatuses = computed(() => {
   const legal = [...legalNextStatuses(order.value.status)];
   return legal.length ? legal : [order.value.status];
 });
-// `paid` is webhook-only: shown as a locked badge, never an option.
-const paymentLocked = computed(() => order.value?.paymentStatus === "paid");
+// Money states are provider-only: a paid or refunded order shows its
+// payment status as a locked value, never an editable option.
+const paymentLocked = computed(() =>
+  order.value?.paymentStatus === "paid" || order.value?.paymentStatus === "refunded"
+);
 const paymentOptions = computed(() =>
-  paymentLocked.value ? ["paid"] : [...ADMIN_EDITABLE_PAYMENT_STATUSES]
+  paymentLocked.value ? [order.value?.paymentStatus] : [...ADMIN_EDITABLE_PAYMENT_STATUSES]
 );
 // Read-only display derivations (never sent back to the API).
 const isDelivery = computed(() => order.value?.fulfillmentType === "delivery");
@@ -48,16 +48,15 @@ watchEffect(() => {
   if (order.value) {
     status.value = order.value.status;
     paymentStatus.value = order.value.paymentStatus;
-    confirmRefund.value = false;
     confirmProviderRefund.value = false;
   }
 });
-watch(paymentStatus, () => {
-  confirmRefund.value = false;
-});
+// A refund already accepted by the provider: the button only checks on it
+// (the server never asks the provider for a second refund).
+const refundInFlight = computed(() => paidPayment.value?.refundStatus === "pending");
 async function refundViaProvider() {
   if (!paidPayment.value || refunding.value) return;
-  if (!confirmProviderRefund.value) {
+  if (!refundInFlight.value && !confirmProviderRefund.value) {
     confirmProviderRefund.value = true;
     toast.info("This moves real money at the provider. Click again to confirm the refund.");
     return;
@@ -69,7 +68,7 @@ async function refundViaProvider() {
       body: { reference: paidPayment.value.reference },
     });
     if (result.state === "pending") {
-      toast.info("Refund accepted and pending at the provider — retry later to confirm.");
+      toast.info("Refund is in progress at the provider. Check again later to confirm it finished.");
     } else {
       toast.success("Refunded at the provider. Payment now reads refunded.");
     }
@@ -82,20 +81,14 @@ async function refundViaProvider() {
   }
 }
 async function save() {
-  if (
-    paymentStatus.value === "refunded" &&
-    order.value?.paymentStatus !== "refunded" &&
-    !confirmRefund.value
-  ) {
-    confirmRefund.value = true;
-    toast.info("Refunded here is record-only — refund the money at Paystack/Flutterwave first, then click again to confirm.");
-    return;
-  }
   saving.value = true;
   try {
     await $fetch(`/api/admin/orders/${route.params.id}/status`, {
       method: "PUT",
-      body: { status: status.value, paymentStatus: paymentStatus.value },
+      // Locked money states are never sent back — the server rejects edits.
+      body: paymentLocked.value
+        ? { status: status.value }
+        : { status: status.value, paymentStatus: paymentStatus.value },
     });
     toast.success(`Order moved to ${status.value}.`);
     await refresh();
@@ -183,7 +176,7 @@ async function save() {
             class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-error/50 px-5 py-2.5 text-xs font-medium uppercase tracking-widest text-error transition-colors hover:bg-error-container hover:text-on-error-container disabled:opacity-50"
             @click="refundViaProvider"
           >
-            {{ refunding ? "Refunding…" : confirmProviderRefund ? "Confirm provider refund" : `Refund via ${order.paymentMethod ?? "provider"}` }}
+            {{ refunding ? "Working…" : refundInFlight ? "Refund in progress — check status" : confirmProviderRefund ? "Confirm provider refund" : `Refund via ${order.paymentMethod ?? "provider"}` }}
           </button>
         </section>
       </div>
@@ -220,13 +213,13 @@ async function save() {
           </div>
           <div class="grid gap-1.5">
             <label for="admin-order-payment" class="text-xs font-medium text-muted-foreground">Payment status</label>
-            <select id="admin-order-payment" v-model="paymentStatus" :disabled="paymentLocked" class="rounded border border-border bg-background px-3 py-2 text-sm disabled:opacity-60" :title="paymentLocked ? 'Paid is set by payment webhooks only' : undefined">
+            <select id="admin-order-payment" v-model="paymentStatus" :disabled="paymentLocked" class="rounded border border-border bg-background px-3 py-2 text-sm disabled:opacity-60" :title="paymentLocked ? 'Locked — changes only through the payment provider' : undefined">
               <option v-for="p in paymentOptions" :key="p" :value="p">{{ p }}</option>
             </select>
           </div>
-          <button :disabled="saving" class="rounded bg-primary px-5 py-2 text-sm text-primary-foreground disabled:opacity-50" @click="save">{{ saving ? "Saving…" : confirmRefund ? "Confirm record-only refund" : "Update status" }}</button>
+          <button :disabled="saving" class="rounded bg-primary px-5 py-2 text-sm text-primary-foreground disabled:opacity-50" @click="save">{{ saving ? "Saving…" : "Update status" }}</button>
         </div>
-        <p v-if="paymentLocked" class="mt-2 text-xs text-muted-foreground">Paid is set by payment webhooks only — recording a refund happens with your payment provider, not here.</p>
+        <p v-if="paymentLocked" class="mt-2 text-xs text-muted-foreground">Payment status is locked once paid or refunded — refunds go through the refund button (owner only).</p>
       </section>
     </div>
     <p v-else class="text-muted-foreground">Order not found.</p>

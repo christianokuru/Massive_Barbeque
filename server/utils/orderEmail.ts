@@ -4,7 +4,7 @@ import { getGuestTokenSecret, issueGuestToken } from "~~/server/utils/guestToken
 import {
   buildOrderConfirmationEmail,
   buildShopOrderEmail,
-  parseEmailList,
+  parseInboxList,
 } from "~~/server/utils/orderEmailTemplate";
 
 /**
@@ -80,8 +80,8 @@ export async function sendOrderPaidEmails(event: any, orderId: string): Promise<
 
     async function sendShopEmail() {
       try {
-        const to = parseEmailList((config as any).orderNotifyEmails);
-        if (!to.length) to.push(...parseEmailList(config.contactReceiverEmail));
+        const to = parseInboxList((config as any).orderNotifyEmails);
+        if (!to.length) to.push(...parseInboxList(config.contactReceiverEmail));
         if (!to.length) {
           console.warn(`Shop order email skipped for ${orderId}: no ORDER_NOTIFY_EMAILS or CONTACT_RECEIVER_EMAIL.`);
           return;

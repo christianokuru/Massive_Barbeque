@@ -38,8 +38,11 @@ import { Textarea } from "@/components/ui/textarea";
 const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 
 // Mirrors server/utils/productImages: https URLs or site-relative paths.
+// …plus files in this project's own Supabase storage (any scheme).
+const storagePrefix = `${String(useRuntimeConfig().public.supabaseUrl || "").replace(/\/+$/, "")}/storage/v1/object/public/`;
 function isImageLocation(v: string) {
   if (!v || v.length > 2048 || /[\s\\]/.test(v)) return false;
+  if (storagePrefix.length > 30 && v.startsWith(storagePrefix)) return true;
   if (v.startsWith("https://")) return true;
   return v.startsWith("/") && !v.startsWith("//");
 }
@@ -49,7 +52,7 @@ const MAX_EXTRAS = 8;
 const variantSchema = z.object({
   name: z.string().min(1, "Name required"),
   sku: z.string().min(1, "SKU required"),
-  price: z.string().regex(PRICE_RE, "e.g. 8500 or 8500.00"),
+  price: z.string().regex(PRICE_RE, "e.g. 8500 or 8500.00").refine((v) => Number(v) > 0, "Price must be more than zero"),
   comparePrice: z.string().regex(PRICE_RE, "e.g. 8500 or 8500.00").optional().or(z.literal("")),
   weight: z.string().regex(PRICE_RE, "e.g. 0.5").optional().or(z.literal("")),
   inventoryQty: z.number().int().min(0),
@@ -57,11 +60,12 @@ const variantSchema = z.object({
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
-  slug: z.string().min(1, "Slug is required"),
+  slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and dashes"),
   imageUrl: z.string().min(1, "A cover photo is required").refine(isImageLocation, {
     message: "Must be an https URL or a site path like /images/…",
   }),
-  variants: z.array(variantSchema),
+  // Customers order a size/price, so a product needs at least one.
+  variants: z.array(variantSchema).min(1, "Add at least one size with a price."),
 });
 
 interface ExtraImageDraft {
@@ -171,7 +175,8 @@ function resetForm() {
     removedImageIds: [],
     isActive: source?.isActive !== false,
     featured: !!source?.featured,
-    variants: (source?.variants ?? []).map((v) => ({ ...v, _key: keySeq++ })),
+    // New products start with one size row ready to fill in.
+    variants: source ? (source.variants ?? []).map((v) => ({ ...v, _key: keySeq++ })) : [blankVariant()],
   };
   errors.value = {};
 }
@@ -234,8 +239,19 @@ function removeExtraImage(index: number) {
   if (removed?.id != null) form.value.removedImageIds.push(removed.id);
 }
 
+/** SKU from product + size, e.g. "MB-SUYA-PLATTER-REGULAR" (editable). */
+function autoSku(variantName: string) {
+  const base = slugify(`${form.value.slug || form.value.name}-${variantName || "item"}`).toUpperCase();
+  return `MB-${base}`.slice(0, 100);
+}
+
 async function handleSubmit() {
   errors.value = {};
+  // Be forgiving with typed input: tidy the slug, fill blank SKUs.
+  form.value.slug = slugify(form.value.slug || form.value.name);
+  for (const v of form.value.variants) {
+    if (!v.sku.trim() && v.name.trim()) v.sku = autoSku(v.name.trim());
+  }
   const parsed = productSchema.safeParse({
     name: form.value.name.trim(),
     slug: form.value.slug.trim(),
@@ -254,7 +270,10 @@ async function handleSubmit() {
       const path = issue.path.join(".");
       if (!(path in errors.value)) errors.value[path] = issue.message;
     }
-    errors.value.form = "Please fix the highlighted fields.";
+    errors.value.form = errors.value.variants || errors.value.imageUrl || "Please fix the highlighted fields.";
+    // The form scrolls; make sure the problem is visible, not just below the fold.
+    toast.error(errors.value.form);
+    nextTick(() => document.querySelector("[data-product-form] .text-destructive")?.scrollIntoView({ block: "center", behavior: "smooth" }));
     return;
   }
   saving.value = true;
@@ -302,7 +321,7 @@ async function handleSubmit() {
             <Badge v-if="isDirty" variant="secondary">Unsaved changes</Badge>
           </div>
           <DialogDescription>
-            {{ isEditing ? "Update details, images and variants." : "Add a new item to the menu with optional size variants." }}
+            {{ isEditing ? "Update details, images and variants." : "Add a new item to the menu with its sizes and prices." }}
           </DialogDescription>
         </DialogHeader>
         <Button type="button" variant="ghost" size="icon" class="shrink-0" aria-label="Close" @click="requestClose">
@@ -310,7 +329,7 @@ async function handleSubmit() {
         </Button>
       </div>
 
-      <div data-lenis-prevent class="grid gap-5 overflow-y-auto px-6 py-5">
+      <div data-lenis-prevent data-product-form class="grid gap-5 overflow-y-auto px-6 py-5">
         <section class="overflow-hidden rounded-xl border">
           <p class="border-b bg-card px-4 py-2 text-sm font-semibold">Cover photo <span class="text-destructive">*</span> <span class="font-normal text-muted-foreground">— shown everywhere</span></p>
           <div class="relative flex h-44 items-center justify-center overflow-hidden bg-muted">
@@ -429,11 +448,11 @@ async function handleSubmit() {
         <section class="grid gap-3 rounded-xl border p-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-semibold">Variants & pricing</p>
-              <p class="text-xs text-muted-foreground">Optional — e.g. Whole / Half with their prices</p>
+              <p class="text-sm font-semibold">Sizes & prices *</p>
+              <p class="text-xs text-muted-foreground">At least one — e.g. Regular, Couple Pack. Leave SKU blank to auto-fill.</p>
             </div>
             <Button type="button" variant="outline" size="sm" @click="addVariant">
-              <Plus /> Add variant
+              <Plus /> Add size
             </Button>
           </div>
           <div
@@ -447,8 +466,8 @@ async function handleSubmit() {
               <p v-if="errors[`variants.${i}.name`]" class="text-xs text-destructive">{{ errors[`variants.${i}.name`] }}</p>
             </div>
             <div class="grid gap-1">
-              <Label :for="`variant-sku-${variant._key}`">SKU *</Label>
-              <Input :id="`variant-sku-${variant._key}`" v-model="variant.sku" placeholder="MB-ITEM-FULL" />
+              <Label :for="`variant-sku-${variant._key}`">SKU</Label>
+              <Input :id="`variant-sku-${variant._key}`" v-model="variant.sku" placeholder="Auto" />
               <p v-if="errors[`variants.${i}.sku`]" class="text-xs text-destructive">{{ errors[`variants.${i}.sku`] }}</p>
             </div>
             <div class="grid gap-1">

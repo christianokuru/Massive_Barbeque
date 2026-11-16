@@ -74,7 +74,7 @@ describe("helpers", () => {
   });
 });
 
-import { buildShopOrderEmail, parseEmailList } from "../server/utils/orderEmailTemplate";
+import { buildShopOrderEmail, parseInboxList } from "../server/utils/orderEmailTemplate";
 
 describe("buildShopOrderEmail", () => {
   it("gives the shop who, what, where and an admin link", () => {
@@ -111,12 +111,12 @@ describe("buildShopOrderEmail", () => {
   });
 });
 
-describe("parseEmailList", () => {
+describe("parseInboxList", () => {
   it("splits, trims, lowercases, dedupes and drops junk", () => {
-    expect(parseEmailList(" Owner@Shop.com, kitchen@shop.com;owner@shop.com  nope ")).toEqual([
+    expect(parseInboxList(" Owner@Shop.com, kitchen@shop.com;owner@shop.com  nope ")).toEqual([
       "owner@shop.com",
       "kitchen@shop.com",
     ]);
-    expect(parseEmailList(undefined)).toEqual([]);
+    expect(parseInboxList(undefined)).toEqual([]);
   });
 });

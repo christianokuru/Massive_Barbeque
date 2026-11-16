@@ -38,8 +38,10 @@ interface AdminCategoryRow {
 }
 
 const requestHeaders = useRequestHeaders(["cookie"]);
-const categories = ref<AdminCategoryRow[]>([]);
-const loading = ref(true);
+// useState (not ref): the server-rendered list is handed to the browser,
+// so the page doesn't render empty and refetch on load.
+const categories = useState<AdminCategoryRow[]>("admin-categories", () => []);
+const loading = ref(false);
 const busy = ref(false);
 const confirmDelete = ref<number | null>(null);
 
@@ -56,7 +58,10 @@ async function load() {
   }
 }
 
-await useAsyncData("admin-categories", load);
+await useAsyncData("admin-categories-load", async () => {
+  await load();
+  return true;
+});
 
 // Create/edit dialog.
 const dialogOpen = ref(false);

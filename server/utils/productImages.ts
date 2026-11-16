@@ -18,9 +18,27 @@ export function isAllowedImageUrl(v: string): boolean {
   return false;
 }
 
+/**
+ * Files in this project's own Supabase storage are always allowed, whatever
+ * the scheme (production storage is https; a local Supabase is plain http).
+ */
+export function isOwnStorageUrl(v: string, supabaseUrl: string): boolean {
+  if (!supabaseUrl || typeof v !== "string" || /[\s\\]/.test(v)) return false;
+  const prefix = `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/public/`;
+  return v.startsWith(prefix) && !v.slice(prefix.length).includes("..");
+}
+
+function configuredSupabaseUrl(): string {
+  try {
+    return String((useRuntimeConfig() as any).public?.supabaseUrl || "");
+  } catch {
+    return "";
+  }
+}
+
 export const imageUrlSchema = z
   .string()
   .max(2048)
-  .refine(isAllowedImageUrl, {
+  .refine((v) => isAllowedImageUrl(v) || isOwnStorageUrl(v, configuredSupabaseUrl()), {
     message: "Must be an https URL or a site path like /images/…",
   });

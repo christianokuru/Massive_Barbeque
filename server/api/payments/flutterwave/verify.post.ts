@@ -1,3 +1,4 @@
+import { flutterwaveBase } from "~~/server/utils/paymentProviders";
 import { z } from 'zod';
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
@@ -23,7 +24,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Call Flutterwave API to verify transaction
-    const response = await fetch(`https://api.flutterwave.com/v3/transactions/${body.transaction_id}/verify`, {
+    const response = await fetch(`${flutterwaveBase()}/v3/transactions/${body.transaction_id}/verify`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${config.flutterwaveSecretKey}`,

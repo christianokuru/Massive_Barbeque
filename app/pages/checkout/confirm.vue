@@ -134,7 +134,7 @@ const orderLabel = computed(() => order.value?.orderNumber ?? orderId.value ?? "
       <h1 class="m3-headline-md mt-2">Thank you! Your feast is on.</h1>
       <p class="m3-body-md mt-3 text-muted-foreground">
         <span v-if="orderLabel">Order <span class="font-semibold text-foreground">{{ orderLabel }}</span> is confirmed.</span>
-        We'll confirm shortly by email/SMS.
+        A receipt is on its way to your email.
       </p>
       <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
         <NuxtLink to="/menu" class="rounded-full bg-primary px-8 py-3 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">Order more</NuxtLink>
@@ -178,7 +178,7 @@ const orderLabel = computed(() => order.value?.orderNumber ?? orderId.value ?? "
       <p class="m3-body-md mt-3 text-muted-foreground">
         <span v-if="orderLabel">Order <span class="font-semibold text-foreground">{{ orderLabel }}</span> is in.</span>
         <span v-if="gatewayRef">Payment reference: {{ gatewayRef }}.</span>
-        If you completed payment, confirmation follows by email/SMS.
+        If you completed payment, your receipt will arrive by email.
       </p>
       <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
         <NuxtLink to="/menu" class="rounded-full bg-primary px-8 py-3 text-center text-xs font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90">Order more</NuxtLink>

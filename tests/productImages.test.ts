@@ -35,3 +35,18 @@ describe("isAllowedImageUrl", () => {
     expect(MAX_EXTRA_IMAGES).toBe(8);
   });
 });
+
+import { isOwnStorageUrl } from "../server/utils/productImages";
+
+describe("isOwnStorageUrl", () => {
+  const sb = "http://127.0.0.1:54321";
+  it("accepts files from this project's storage bucket", () => {
+    expect(isOwnStorageUrl(`${sb}/storage/v1/object/public/product-images/a.jpg`, sb)).toBe(true);
+    expect(isOwnStorageUrl("https://x.supabase.co/storage/v1/object/public/product-images/a.jpg", "https://x.supabase.co/")).toBe(true);
+  });
+  it("rejects other hosts, traversal and missing config", () => {
+    expect(isOwnStorageUrl("http://evil.test/storage/v1/object/public/a.jpg", sb)).toBe(false);
+    expect(isOwnStorageUrl(`${sb}/storage/v1/object/public/../secret`, sb)).toBe(false);
+    expect(isOwnStorageUrl(`${sb}/storage/v1/object/public/a.jpg`, "")).toBe(false);
+  });
+});

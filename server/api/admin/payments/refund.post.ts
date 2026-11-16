@@ -1,3 +1,4 @@
+import { paystackBase, flutterwaveBase } from "~~/server/utils/paymentProviders";
 import { z } from "zod";
 import { getServiceSupabase } from "~~/server/utils/supabase";
 import { auditAdminAction, requireOwner } from "~~/server/utils/adminGovernance";
@@ -86,8 +87,8 @@ export default defineEventHandler(async (event) => {
     if (payment.refund_status === "pending" && payment.refund_id) {
       const url =
         provider === "paystack"
-          ? `https://api.paystack.co/refund/${encodeURIComponent(payment.refund_id)}`
-          : `https://api.flutterwave.com/v3/refunds/${encodeURIComponent(payment.refund_id)}`;
+          ? `${paystackBase()}/refund/${encodeURIComponent(payment.refund_id)}`
+          : `${flutterwaveBase()}/v3/refunds/${encodeURIComponent(payment.refund_id)}`;
       const res = await fetch(url, { method: "GET", headers });
       const data = await res.json().catch(() => null);
       const outcome = classifyRefund(provider, data);
@@ -145,7 +146,7 @@ export default defineEventHandler(async (event) => {
     let data: any = null;
     try {
       if (provider === "paystack") {
-        const res = await fetch("https://api.paystack.co/refund", {
+        const res = await fetch(`${paystackBase()}/refund`, {
           method: "POST",
           headers,
           // No amount: full refund of the original transaction.
@@ -160,7 +161,7 @@ export default defineEventHandler(async (event) => {
           throw createError({ statusCode: 400, statusMessage: "No provider transaction on record for this payment." });
         }
         const res = await fetch(
-          `https://api.flutterwave.com/v3/transactions/${encodeURIComponent(String(transactionId))}/refund`,
+          `${flutterwaveBase()}/v3/transactions/${encodeURIComponent(String(transactionId))}/refund`,
           { method: "POST", headers, body: JSON.stringify({ amount: Number(payment.amount) }) }
         );
         data = await res.json().catch(() => null);

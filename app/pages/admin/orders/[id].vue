@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { toast } from "vue-sonner";
 import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
-import { ADMIN_EDITABLE_PAYMENT_STATUSES, legalNextStatuses } from "~~/shared/utils/orderStatus";
+import { legalNextStatuses } from "~~/shared/utils/orderStatus";
 import { deliveryAddressLines, formatOrderDateTime } from "~~/shared/utils/orderDisplay";
 import { formatNaira } from "~~/shared/utils/pricing";
 definePageMeta({ layout: "admin", middleware: "admin" });
@@ -12,9 +12,7 @@ const { isOwner } = useAuth();
 const { data: order, refresh } = await useAsyncData(`admin-order-${route.params.id}`, () =>
   $fetch<{ order: any }>(`/api/orders/${route.params.id}`, { headers: requestHeaders }).then((r) => r.order).catch(() => null)
 );
-const status = ref("confirmed");
-const paymentStatus = ref("paid");
-const saving = ref(false);
+const saving = ref<string | null>(null);
 // Provider refund (owner-only money-out): two clicks, provider-confirmed.
 const confirmProviderRefund = ref(false);
 const refunding = ref(false);
@@ -22,22 +20,27 @@ const paidPayment = computed(
   () => (order.value?.payments ?? []).find((p: any) => p.status === "paid") ?? null
 );
 
-// Dropdowns derive from the shared pipeline truth — the server enforces
-// the same lists, so an option shown here can never 400 there. Falls back
-// to the current state if the pipeline ever gains a state this build
-// doesn't know (the select must never render empty).
-const availableStatuses = computed(() => {
+// Next-step actions derive from the shared pipeline (the server enforces
+// the same rules, so a button shown here can never be refused there).
+const STEP_LABEL = computed<Record<string, string>>(() => ({
+  confirmed: "Confirm order",
+  preparing: "Start preparing",
+  ready: order.value?.fulfillmentType === "pickup" ? "Ready for pickup" : "Ready for dispatch",
+  completed: order.value?.fulfillmentType === "pickup" ? "Mark collected" : "Mark delivered",
+}));
+const nextSteps = computed<string[]>(() => {
   if (!order.value) return [];
-  const legal = [...legalNextStatuses(order.value.status)];
-  return legal.length ? legal : [order.value.status];
+  return legalNextStatuses(order.value.status).filter(
+    (s) => s !== order.value!.status && s !== "cancelled",
+  );
 });
-// Money states are provider-only: a paid or refunded order shows its
-// payment status as a locked value, never an editable option.
+const canCancel = computed(
+  () => !!order.value && order.value.status !== "cancelled" && legalNextStatuses(order.value.status).includes("cancelled"),
+);
+const confirmAction = ref<string | null>(null);
+// Money states are provider-only: paid/refunded can't be relabelled here.
 const paymentLocked = computed(() =>
   order.value?.paymentStatus === "paid" || order.value?.paymentStatus === "refunded"
-);
-const paymentOptions = computed(() =>
-  paymentLocked.value ? [order.value?.paymentStatus] : [...ADMIN_EDITABLE_PAYMENT_STATUSES]
 );
 // Read-only display derivations (never sent back to the API).
 const isDelivery = computed(() => order.value?.fulfillmentType === "delivery");
@@ -46,9 +49,8 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
 const payments = computed(() => order.value?.payments ?? []);
 watchEffect(() => {
   if (order.value) {
-    status.value = order.value.status;
-    paymentStatus.value = order.value.paymentStatus;
     confirmProviderRefund.value = false;
+    confirmAction.value = null;
   }
 });
 // A refund already accepted by the provider: the button only checks on it
@@ -80,23 +82,44 @@ async function refundViaProvider() {
     refunding.value = false;
   }
 }
-async function save() {
-  saving.value = true;
+async function send(body: Record<string, string>, success: string) {
+  saving.value = body.status === order.value?.status ? `payment:${body.paymentStatus}` : body.status;
   try {
-    await $fetch(`/api/admin/orders/${route.params.id}/status`, {
-      method: "PUT",
-      // Locked money states are never sent back — the server rejects edits.
-      body: paymentLocked.value
-        ? { status: status.value }
-        : { status: status.value, paymentStatus: paymentStatus.value },
-    });
-    toast.success(`Order moved to ${status.value}.`);
+    await $fetch(`/api/admin/orders/${route.params.id}/status`, { method: "PUT", body });
+    toast.success(success);
     await refresh();
   } catch (e: any) {
     toast.error(e?.data?.statusMessage || e?.message || "Could not update order.");
+    await refresh();
   } finally {
-    saving.value = false;
+    saving.value = null;
+    confirmAction.value = null;
   }
+}
+
+/** Move the order one step. Risky moves ask for a second click. */
+function moveTo(target: string) {
+  if (!order.value || saving.value) return;
+  const unpaid = order.value.paymentStatus !== "paid";
+  const needsConfirm = target === "cancelled" || (target === "confirmed" && unpaid);
+  if (needsConfirm && confirmAction.value !== target) {
+    confirmAction.value = target;
+    if (target === "cancelled") {
+      toast.info(order.value.paymentStatus === "paid"
+        ? "This order is paid. After cancelling, refund it from the Payment card. Click again to cancel."
+        : "Click again to cancel this order.");
+    } else {
+      toast.info("This order isn't paid yet. Click again to confirm it anyway (e.g. paid by transfer).");
+    }
+    return;
+  }
+  send({ status: target }, target === "cancelled" ? "Order cancelled." : `Order moved to ${target}.`);
+}
+
+/** Unpaid orders only: relabel pending ↔ failed. */
+function setPayment(next: "pending" | "failed") {
+  if (!order.value || paymentLocked.value || saving.value) return;
+  send({ status: order.value.status, paymentStatus: next }, `Payment marked ${next}.`);
 }
 </script>
 
@@ -111,8 +134,34 @@ async function save() {
         <p class="mt-1 text-sm text-muted-foreground">Placed {{ placedAt }} · {{ isDelivery ? "Delivery" : "Pickup" }}</p>
         <div class="mt-3 flex flex-wrap gap-2">
           <OrderStatus :status="order.status" />
-          <OrderStatus :status="order.paymentStatus" />
+          <OrderStatus kind="payment" :status="order.paymentStatus" :order-status="order.status" />
         </div>
+
+        <!-- Kitchen actions: the next legal step(s), one click each -->
+        <div v-if="nextSteps.length || canCancel" class="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+          <button
+            v-for="step in nextSteps"
+            :key="step"
+            type="button"
+            :disabled="!!saving"
+            class="inline-flex min-h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+            @click="moveTo(step)"
+          >
+            {{ saving === step ? "Saving…" : confirmAction === step ? "Click again to confirm" : (STEP_LABEL[step] ?? step) }}
+          </button>
+          <button
+            v-if="canCancel"
+            type="button"
+            :disabled="!!saving"
+            class="inline-flex min-h-10 items-center justify-center rounded-full border border-error/50 px-5 text-sm font-medium text-error transition-colors hover:bg-error-container hover:text-on-error-container disabled:opacity-50"
+            @click="moveTo('cancelled')"
+          >
+            {{ saving === "cancelled" ? "Cancelling…" : confirmAction === "cancelled" ? "Click again to cancel" : "Cancel order" }}
+          </button>
+        </div>
+        <p v-else class="mt-4 border-t border-border pt-4 text-sm text-muted-foreground">
+          This order is {{ order.status }} — no further steps.
+        </p>
         <dl class="mt-4 grid gap-2 border-t border-border pt-4 text-sm sm:grid-cols-3">
           <div>
             <dt class="text-xs uppercase tracking-wider text-muted-foreground">Customer</dt>
@@ -154,13 +203,13 @@ async function save() {
           <h2 class="text-sm font-semibold">Payment</h2>
           <div class="mt-3 flex items-center justify-between gap-3 text-sm">
             <span class="capitalize text-muted-foreground">{{ order.paymentMethod ?? "—" }}</span>
-            <OrderStatus :status="order.paymentStatus" />
+            <OrderStatus kind="payment" :status="order.paymentStatus" :order-status="order.status" />
           </div>
           <div v-if="payments.length" class="mt-3 space-y-2 border-t border-border pt-3">
             <div v-for="p in payments" :key="p.id" class="rounded-lg bg-muted/60 px-3 py-2 text-xs">
               <p class="flex items-center justify-between gap-2">
                 <span class="min-w-0 flex-1 break-all font-mono">{{ p.reference }}</span>
-                <OrderStatus :status="p.status" />
+                <OrderStatus kind="payment" :status="p.status" />
               </p>
               <p class="mt-1 text-muted-foreground">
                 {{ p.provider }} · {{ formatNaira(Number(p.amount || 0)) }} {{ p.currency || "NGN" }}
@@ -169,6 +218,23 @@ async function save() {
             </div>
           </div>
           <p v-else class="mt-3 text-sm text-muted-foreground">No payment attempts recorded yet.</p>
+          <div v-if="!paymentLocked && order.status !== 'cancelled'" class="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>Payment not received.</span>
+            <button
+              v-if="order.paymentStatus !== 'failed'"
+              type="button"
+              :disabled="!!saving"
+              class="rounded-full border border-border px-3 py-1 font-medium text-foreground hover:border-primary disabled:opacity-50"
+              @click="setPayment('failed')"
+            >Mark payment failed</button>
+            <button
+              v-else
+              type="button"
+              :disabled="!!saving"
+              class="rounded-full border border-border px-3 py-1 font-medium text-foreground hover:border-primary disabled:opacity-50"
+              @click="setPayment('pending')"
+            >Mark payment pending</button>
+          </div>
           <button
             v-if="isOwner && paidPayment"
             type="button"
@@ -200,28 +266,11 @@ async function save() {
         </div>
       </section>
 
-      <!-- Actions: move the order down the pipeline -->
-      <section class="rounded-xl border border-border bg-card p-5">
-        <h2 class="text-sm font-semibold">Update status</h2>
-        <p class="mt-1 text-xs text-muted-foreground">Orders move forward only — confirmed → preparing → ready → completed. Only the steps allowed from “{{ order.status }}” are listed.</p>
-        <div class="mt-4 flex flex-wrap items-end gap-3">
-          <div class="grid gap-1.5">
-            <label for="admin-order-status" class="text-xs font-medium text-muted-foreground">Order status</label>
-            <select id="admin-order-status" v-model="status" class="rounded border border-border bg-background px-3 py-2 text-sm">
-              <option v-for="s in availableStatuses" :key="s" :value="s">{{ s }}</option>
-            </select>
-          </div>
-          <div class="grid gap-1.5">
-            <label for="admin-order-payment" class="text-xs font-medium text-muted-foreground">Payment status</label>
-            <select id="admin-order-payment" v-model="paymentStatus" :disabled="paymentLocked" class="rounded border border-border bg-background px-3 py-2 text-sm disabled:opacity-60" :title="paymentLocked ? 'Locked — changes only through the payment provider' : undefined">
-              <option v-for="p in paymentOptions" :key="p" :value="p">{{ p }}</option>
-            </select>
-          </div>
-          <button :disabled="saving" class="rounded bg-primary px-5 py-2 text-sm text-primary-foreground disabled:opacity-50" @click="save">{{ saving ? "Saving…" : "Update status" }}</button>
-        </div>
-        <p v-if="paymentLocked" class="mt-2 text-xs text-muted-foreground">Payment status is locked once paid or refunded — refunds go through the refund button (owner only).</p>
-      </section>
     </div>
-    <p v-else class="text-muted-foreground">Order not found.</p>
+    <div v-else class="rounded-xl border border-dashed border-border p-10 text-center">
+      <p class="font-medium">Order not found</p>
+      <p class="mt-1 text-sm text-muted-foreground">It may have been removed, or the link is wrong.</p>
+      <NuxtLink to="/admin/orders" class="mt-4 inline-block text-sm text-primary hover:underline">Back to orders</NuxtLink>
+    </div>
   </div>
 </template>

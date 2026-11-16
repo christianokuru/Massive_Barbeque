@@ -1,3 +1,4 @@
+import { flutterwaveBase } from "~~/server/utils/paymentProviders";
 import { z } from 'zod';
 import crypto from 'crypto';
 import { confirmUrl } from "~~/server/utils/siteUrl";
@@ -124,7 +125,7 @@ export default defineEventHandler(async (event) => {
     // responds with `{ link }` only — the tx_ref is ours.
     let data: any = null;
     try {
-      const response = await fetch('https://api.flutterwave.com/v3/payments', {
+      const response = await fetch(`${flutterwaveBase()}/v3/payments`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${config.flutterwaveSecretKey}`,

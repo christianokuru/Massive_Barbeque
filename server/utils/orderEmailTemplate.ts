@@ -124,7 +124,7 @@ export function buildOrderConfirmationEmail({ order, orderUrl, appName }: OrderE
 }
 
 /** Parse a comma/space-separated list of inboxes; drops junk entries. */
-export function parseEmailList(raw: unknown): string[] {
+export function parseInboxList(raw: unknown): string[] {
   return String(raw ?? "")
     .split(/[,\s;]+/)
     .map((e) => e.trim().toLowerCase())

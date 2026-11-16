@@ -49,7 +49,14 @@ const attentionRows = computed<OrderRow[]>(() => (overview.value?.attention ?? [
   <div class="flex flex-col gap-4 md:gap-6">
     <SectionCards :stats="stats" />
     <div class="px-4 lg:px-6">
-      <ChartAreaInteractive :data="revenueSeries" />
+      <!-- Charts draw with browser APIs: render client-side only, with a
+           same-size placeholder so the page doesn't jump. -->
+      <ClientOnly>
+        <ChartAreaInteractive :data="revenueSeries" />
+        <template #fallback>
+          <div class="h-[372px] animate-pulse rounded-xl border border-border bg-card" aria-hidden="true" />
+        </template>
+      </ClientOnly>
     </div>
     <DataTable
       :orders="attentionRows"

@@ -1,26 +1,26 @@
 import { z } from "zod";
+import { defineApi, parseBody, routeId } from "~~/server/utils/api";
+import { db, must, mustFind } from "~~/server/utils/db";
 import { requireAdmin } from "~~/server/utils/supabase";
-import { imageUrlSchema } from "~~/server/utils/productImages";
-import { throwIfUniqueViolation } from "~~/server/utils/uniqueViolation";
+import { toProduct } from "~~/server/utils/mappers";
 import { auditAdminAction } from "~~/server/utils/adminGovernance";
 import { getClientIp } from "~~/server/utils/clientIp";
-import { toProduct } from "~~/server/utils/mappers";
+import { assertCategoryExists, conflictAs, slugSchema } from "~~/server/utils/catalogAdmin";
+import { imageUrlSchema } from "~~/server/utils/productImages";
 
-const productSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  slug: z.string().min(1).max(200).optional(),
+// PUT /api/admin/products/:id — edit product fields (audited). The cover
+// photo can be replaced but never cleared.
+const schema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  slug: slugSchema.min(1).optional(),
   description: z.string().max(5000).nullable().optional(),
   categoryId: z.number().int().positive().nullable().optional(),
-  // Cover photo can stay untouched (absent), but if the key is sent it
-  // must be a real image — null/empty is rejected so a food can never
-  // be left with zero pictures. No .nullable() on purpose: clearing the
-  // cover fails validation instead of silently wiping it.
   imageUrl: imageUrlSchema.optional(),
   isActive: z.boolean().optional(),
   featured: z.boolean().optional(),
 });
 
-const FIELD_MAP: Record<string, string> = {
+const COLUMNS: Record<string, string> = {
   name: "name",
   slug: "slug",
   description: "description",
@@ -30,43 +30,28 @@ const FIELD_MAP: Record<string, string> = {
   featured: "featured",
 };
 
-export default defineEventHandler(async (event) => {
-  try {
-    const { supabase, user } = await requireAdmin(event);
+export default defineApi(async (event) => {
+  const { user } = await requireAdmin(event);
+  const id = routeId(event, "id", "Product not found.");
+  const body = await parseBody(event, schema);
+  const existing = mustFind(
+    await db().from("products").select("id, slug").eq("id", id).maybeSingle(),
+    "Product not found.",
+  ) as any;
+  if (body.categoryId !== undefined) await assertCategoryExists(body.categoryId);
 
-    const id = Number(getRouterParam(event, "id"));
-    if (!id) throw createError({ statusCode: 400, statusMessage: "Product ID required" });
-
-    const body = await readValidatedBody(event, productSchema.parse);
-    const update: Record<string, any> = { updated_at: new Date().toISOString() };
-    for (const [key, value] of Object.entries(body)) {
-      if (value !== undefined && FIELD_MAP[key]) update[FIELD_MAP[key]] = value;
-    }
-
-    // Fail-closed: audit the update before it happens.
-    await auditAdminAction(user.email || null, "product_update", String(id), getClientIp(event));
-
-    const { error: updateError } = await supabase
-      .from("products")
-      .update(update)
-      .eq("id", id);
-    if (updateError) throwIfUniqueViolation(updateError, "A product with this slug already exists.");
-
-    const { data: product, error } = await supabase
-      .from("products")
-      .select("*, categories(*), product_variants(*), product_images(*)")
-      .eq("id", id)
-      .single();
-    if (error) throw error;
-    return { success: true, product: toProduct(product) };
-  } catch (error: any) {
-    console.error("Product update error:", error?.message || error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({ statusCode: 400, statusMessage: "Invalid form data", data: error.errors });
-    }
-    if (error?.statusCode) throw error;
-
-    throw createError({ statusCode: 500, statusMessage: error?.message || "Failed to update product" });
+  const update: Record<string, any> = { updated_at: new Date().toISOString() };
+  for (const [key, value] of Object.entries(body)) {
+    if (value !== undefined && COLUMNS[key]) update[COLUMNS[key]] = value;
   }
+  if (typeof update.description === "string") update.description = update.description.trim() || null;
+
+  await auditAdminAction(user.email || null, "product_update", existing.slug || String(id), getClientIp(event));
+  const { error } = await db().from("products").update(update).eq("id", id);
+  if (error) conflictAs(error, "A product with this slug already exists.");
+
+  const full = must(
+    await db().from("products").select("*, categories(*), product_variants(*), product_images(*)").eq("id", id).single(),
+  );
+  return { success: true, product: toProduct(full) };
 });

@@ -17,13 +17,7 @@ import {
   ChartTooltipContent,
   componentToString,
 } from "@/components/ui/chart";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { formatNaira } from "~~/shared/utils/pricing";
 
 export interface RevenuePoint {
   date: string
@@ -77,6 +71,26 @@ const filterRange = computed(() => {
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 });
 
+const ranges = [
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "90 days" },
+];
+
+const rangeTotal = computed(() => filterRange.value.reduce((sum, d) => sum + d.revenue, 0));
+
+// Fewer x-axis labels on narrow screens so dates never overlap.
+const width = ref(1024);
+function measure() {
+  width.value = window.innerWidth;
+}
+onMounted(() => {
+  measure();
+  window.addEventListener("resize", measure, { passive: true });
+});
+onBeforeUnmount(() => window.removeEventListener("resize", measure));
+const xTicks = computed(() => (width.value < 480 ? 3 : width.value < 900 ? 5 : 7));
+
 const yMax = computed(() => {
   const max = Math.max(0, ...filterRange.value.map((item) => item.revenue));
   return max === 0 ? 100 : Math.ceil(max * 1.2);
@@ -92,32 +106,32 @@ function formatDay(d: number) {
 
 <template>
   <Card class="pt-0">
-    <CardHeader class="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
+    <CardHeader class="flex flex-col gap-3 space-y-0 border-b py-5 sm:flex-row sm:items-center">
       <div class="grid flex-1 gap-1">
         <CardTitle>Revenue</CardTitle>
         <CardDescription>
-          Paid orders per day
+          <span class="font-semibold text-foreground tabular-nums">{{ formatNaira(rangeTotal) }}</span>
+          paid in the last {{ ranges.find((r) => r.value === timeRange)?.label }}
         </CardDescription>
       </div>
-      <Select v-model="timeRange">
-        <SelectTrigger
-          class="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
-          aria-label="Select a value"
+      <div
+        class="inline-flex self-start rounded-lg border border-border p-0.5 sm:self-auto"
+        role="radiogroup"
+        aria-label="Revenue period"
+      >
+        <button
+          v-for="r in ranges"
+          :key="r.value"
+          type="button"
+          role="radio"
+          :aria-checked="timeRange === r.value"
+          class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+          :class="timeRange === r.value ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground'"
+          @click="timeRange = r.value"
         >
-          <SelectValue placeholder="Last 30 days" />
-        </SelectTrigger>
-        <SelectContent class="rounded-xl">
-          <SelectItem value="90d" class="rounded-lg">
-            Last 3 months
-          </SelectItem>
-          <SelectItem value="30d" class="rounded-lg">
-            Last 30 days
-          </SelectItem>
-          <SelectItem value="7d" class="rounded-lg">
-            Last 7 days
-          </SelectItem>
-        </SelectContent>
-      </Select>
+          {{ r.label }}
+        </button>
+      </div>
     </CardHeader>
     <CardContent class="px-2 pt-4 sm:px-6 sm:pt-6 pb-4">
       <ChartContainer :config="chartConfig" class="aspect-auto h-[250px] w-full" :cursor="false">
@@ -145,7 +159,7 @@ function formatDay(d: number) {
             :tick-line="false"
             :domain-line="false"
             :grid-line="false"
-            :num-ticks="6"
+            :num-ticks="xTicks"
             :tick-format="(d: number) => formatDay(d)"
           />
           <VisAxis

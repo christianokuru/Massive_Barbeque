@@ -1,3 +1,4 @@
+import { flutterwaveBase } from "~~/server/utils/paymentProviders";
 import crypto from "crypto";
 import { getServiceSupabase } from "~~/server/utils/supabase";
 import { isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
@@ -114,7 +115,7 @@ export default defineEventHandler(async (event) => {
           return { success: true };
         }
         const verifyRes = await fetch(
-          `https://api.flutterwave.com/v3/transactions/${paymentData.id}/verify`,
+          `${flutterwaveBase()}/v3/transactions/${paymentData.id}/verify`,
           {
             method: "GET",
             headers: {

@@ -1,37 +1,26 @@
-import { requireAdmin, getServiceSupabase } from "~~/server/utils/supabase";
+import { defineApi } from "~~/server/utils/api";
+import { db, must } from "~~/server/utils/db";
+import { requireAdmin } from "~~/server/utils/supabase";
 import { toCategory } from "~~/server/utils/mappers";
 
-// Full category list for the admin console, including inactive ones
-// (the public endpoint only exposes active rows).
-export default defineEventHandler(async (event) => {
-  try {
-    await requireAdmin(event);
-
-    const admin = getServiceSupabase();
-    const { data, error } = await admin
-      .from("categories")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-
-    const rows = data || [];
-    const byId = new Map(rows.map((r: any) => [r.id, r]));
-    const withParents = rows.map((r: any) => ({
-      ...r,
-      parent: r.parent_id ? byId.get(r.parent_id) ?? null : null,
-    }));
-
-    return { categories: withParents.map(toCategory) };
-  } catch (error: any) {
-    console.error("Admin categories fetch error:", error?.message || error);
-
-    if (error.statusCode) {
-      throw error;
-    }
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Failed to fetch categories",
-    });
+// GET /api/admin/categories — every category (inactive included), with its
+// parent and how many products use it.
+export default defineApi(async (event) => {
+  await requireAdmin(event);
+  const [rows, products] = await Promise.all([
+    db().from("categories").select("*").order("created_at", { ascending: false }),
+    db().from("products").select("category_id"),
+  ]);
+  const categories = must(rows) as any[];
+  const counts = new Map<number, number>();
+  for (const p of must(products) as any[]) {
+    if (p.category_id != null) counts.set(p.category_id, (counts.get(p.category_id) ?? 0) + 1);
   }
+  const byId = new Map(categories.map((r) => [r.id, r]));
+  return {
+    categories: categories.map((r) => ({
+      ...toCategory({ ...r, parent: r.parent_id ? byId.get(r.parent_id) ?? null : null }),
+      productCount: counts.get(r.id) ?? 0,
+    })),
+  };
 });

@@ -24,8 +24,16 @@ onMounted(() => {
   greeting.value = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 });
 
-const activeOrders = computed(() => all.value.filter((o) => !isTerminalOrderStatus(o.status)));
+// "In progress" = the kitchen has it: paid, or confirmed by staff. An
+// unpaid pending order is an unfinished checkout, not food on the grill.
+const awaitingPayment = computed(() =>
+  all.value.filter((o) => o.status === "pending" && o.paymentStatus !== "paid"),
+);
+const activeOrders = computed(() =>
+  all.value.filter((o) => !isTerminalOrderStatus(o.status) && !(o.status === "pending" && o.paymentStatus !== "paid")),
+);
 const spotlight = computed(() => activeOrders.value[0] ?? null);
+const unpaid = computed(() => (spotlight.value ? null : awaitingPayment.value[0] ?? null));
 const totalSpent = computed(() =>
   all.value
     .filter((o) => o.paymentStatus === "paid")
@@ -108,9 +116,31 @@ function formatDate(iso: string) {
         </span>
         <div class="min-w-0 flex-1">
           <p class="m3-label-md uppercase tracking-[0.1em] opacity-80">Fired up right now</p>
-          <p class="m3-title-md truncate">{{ spotlight.orderNumber }} · ₦{{ Number(spotlight.total).toLocaleString("en-NG") }}</p>
+          <p class="m3-title-md">{{ spotlight.orderNumber }}</p>
+          <p class="m3-body-sm mt-1 flex flex-wrap items-center gap-2 opacity-90">
+            ₦{{ Number(spotlight.total).toLocaleString("en-NG") }}
+            <OrderStatus :status="spotlight.status" />
+          </p>
         </div>
-        <OrderStatus :status="spotlight.status" />
+        <M3Icon name="chevron_right" :size="24" class="shrink-0 transition-transform group-hover:translate-x-1" />
+      </NuxtLink>
+    </section>
+
+    <!-- Unfinished checkout: nothing is cooking until it's paid -->
+    <section v-if="unpaid" aria-label="Payment needed" class="mt-4">
+      <NuxtLink
+        :to="`/dashboard/orders/${unpaid.id}`"
+        class="group flex items-center gap-4 rounded-2xl border border-primary/40 bg-card p-4 transition-colors hover:border-primary sm:p-5"
+      >
+        <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
+          <M3Icon name="credit_card" :size="24" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="m3-label-md uppercase tracking-[0.1em] text-primary">Payment needed</p>
+          <p class="m3-title-md truncate">{{ unpaid.orderNumber }} · ₦{{ Number(unpaid.total).toLocaleString("en-NG") }}</p>
+          <p class="m3-body-sm text-muted-foreground">We start grilling as soon as it's paid.</p>
+        </div>
+        <span class="hidden shrink-0 rounded-full bg-primary px-4 py-2 text-xs font-medium uppercase tracking-widest text-primary-foreground sm:inline-flex">Pay now</span>
         <M3Icon name="chevron_right" :size="24" class="shrink-0 transition-transform group-hover:translate-x-1" />
       </NuxtLink>
     </section>
@@ -139,9 +169,9 @@ function formatDate(iso: string) {
               {{ formatDate(o.createdAt) }} · ₦{{ Number(o.total).toLocaleString("en-NG") }}
             </p>
           </div>
-          <div class="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
             <OrderStatus :status="o.status" />
-            <OrderStatus :status="o.paymentStatus" />
+            <OrderStatus kind="payment" :status="o.paymentStatus" :order-status="o.status" />
           </div>
           <M3Icon name="chevron_right" :size="20" class="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
         </NuxtLink>

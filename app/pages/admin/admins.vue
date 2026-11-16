@@ -18,10 +18,11 @@ interface InviteRow {
   created_at: string;
 }
 
-const admins = ref<AdminRow[]>([]);
-const invites = ref<InviteRow[]>([]);
-const loading = ref(true);
-const forbidden = ref(false);
+// useState (not ref) so the server-rendered roster reaches the browser.
+const admins = useState<AdminRow[]>("admin-roster-admins", () => []);
+const invites = useState<InviteRow[]>("admin-roster-invites", () => []);
+const loading = ref(false);
+const forbidden = useState("admin-roster-forbidden", () => false);
 const email = ref("");
 const busy = ref(false);
 const confirmDemote = ref<string | null>(null);
@@ -45,7 +46,10 @@ async function load() {
   }
 }
 
-await useAsyncData("admin-roster", load);
+await useAsyncData("admin-roster-load", async () => {
+  await load();
+  return true;
+});
 
 const myEmail = computed(() => (user.value?.email || "").toLowerCase());
 
@@ -87,6 +91,25 @@ async function demote(target: string) {
     await load();
   } catch (e: any) {
     toast.error(e?.data?.statusMessage || "Could not demote user.");
+  } finally {
+    busy.value = false;
+  }
+}
+
+// Cancel a pending invite (two clicks, like demote).
+async function revokeInvite(target: string) {
+  if (confirmRevoke.value !== target) {
+    confirmRevoke.value = target;
+    return;
+  }
+  confirmRevoke.value = null;
+  busy.value = true;
+  try {
+    await $fetch("/api/admin/admins/invite", { method: "DELETE", body: { email: target } });
+    toast.success(`Invite for ${target} cancelled.`);
+    await load();
+  } catch (e: any) {
+    toast.error(e?.data?.statusMessage || "Could not cancel the invite.");
   } finally {
     busy.value = false;
   }

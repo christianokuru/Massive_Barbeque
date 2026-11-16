@@ -1,52 +1,45 @@
-import { getServiceSupabase, requireUser } from "~~/server/utils/supabase";
+import { defineApi } from "~~/server/utils/api";
+import { db, must } from "~~/server/utils/db";
+import { requireUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 
-export default defineEventHandler(async (event) => {
-  try {
-    const { user } = await requireUser(event);
-    const service = getServiceSupabase();
+// GET /api/orders — the signed-in customer's orders, newest first.
+// Includes guest orders placed with the same email before the account
+// existed — but ONLY when the account's email is confirmed. Without that,
+// anyone could sign up with a buyer's address and read their orders.
+const MAX_ORDERS = 500;
 
-    // Owned orders (user_id = me)
-    const { data: owned, error: ownedError } = await service
+export default defineApi(async (event) => {
+  const { user } = await requireUser(event);
+
+  const owned = must(
+    await db()
       .from("orders")
       .select("*, order_items(*)")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    if (ownedError) throw ownedError;
+      .order("created_at", { ascending: false })
+      .limit(MAX_ORDERS),
+  ) as any[];
 
-    // Guest orders that used the same email before the account existed.
-    // RLS hides user_id IS NULL from the user-scoped client, so we must use
-    // the service role and filter in code (ilike is case-insensitive exact).
-    let guest: any[] = [];
-    const normalizedEmail = user.email?.trim().toLowerCase();
-    if (normalizedEmail) {
-      const { data: candidates, error: guestError } = await service
+  let guest: any[] = [];
+  const email = user.email?.trim().toLowerCase();
+  if (email && (user as any).email_confirmed_at) {
+    // ilike without wildcards = case-insensitive match; re-check exactly in
+    // code so "_" / "%" in an address can't widen the match.
+    const candidates = must(
+      await db()
         .from("orders")
         .select("*, order_items(*)")
         .is("user_id", null)
-        .ilike("customer_email", normalizedEmail)
-        .order("created_at", { ascending: false });
-      if (guestError) throw guestError;
-      guest = (candidates || []).filter(
-        (r: any) => r.customer_email?.trim().toLowerCase() === normalizedEmail,
-      );
-    }
-
-    const all = [...(owned || []), ...guest].sort(
-      (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-
-    return { orders: all.map(toOrder) };
-  } catch (error: any) {
-    console.error("Orders fetch error:", error?.message || error);
-
-    if (error.statusCode) {
-      throw error;
-    }
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Failed to fetch orders",
-    });
+        .ilike("customer_email", email.replace(/[\\%_]/g, (c) => `\\${c}`))
+        .order("created_at", { ascending: false })
+        .limit(MAX_ORDERS),
+    ) as any[];
+    guest = candidates.filter((r) => r.customer_email?.trim().toLowerCase() === email);
   }
+
+  const all = [...owned, ...guest].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  return { orders: all.map(toOrder) };
 });

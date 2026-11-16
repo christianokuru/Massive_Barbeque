@@ -1,20 +1,24 @@
 import { z } from "zod";
+import { defineApi, parseBody, routeId } from "~~/server/utils/api";
+import { db, mustFind } from "~~/server/utils/db";
 import { requireAdmin } from "~~/server/utils/supabase";
-import { throwIfUniqueViolation } from "~~/server/utils/uniqueViolation";
+import { toVariant } from "~~/server/utils/mappers";
+import { auditAdminAction } from "~~/server/utils/adminGovernance";
+import { getClientIp } from "~~/server/utils/clientIp";
+import { conflictAs, optionalDecimal, priceSchema } from "~~/server/utils/catalogAdmin";
 
-const PRICE_RE = /^\d+(\.\d{1,2})?$/;
-
-const variantSchema = z.object({
-  name: z.string().min(1).optional(),
-  sku: z.string().min(1).optional(),
-  price: z.string().regex(PRICE_RE, "Invalid price format").optional(),
-  comparePrice: z.string().regex(PRICE_RE).nullable().optional(),
-  inventoryQty: z.number().int().min(0).optional(),
-  weight: z.string().regex(PRICE_RE).nullable().optional(),
+// PUT /api/admin/variants/:id — edit a size/option (audited).
+const schema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  sku: z.string().trim().min(1).max(100).optional(),
+  price: priceSchema.optional(),
+  comparePrice: optionalDecimal.nullable().optional(),
+  inventoryQty: z.number().int().min(0).max(1000000).optional(),
+  weight: optionalDecimal.nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
-const FIELD_MAP: Record<string, string> = {
+const COLUMNS: Record<string, string> = {
   name: "name",
   sku: "sku",
   price: "price",
@@ -24,43 +28,22 @@ const FIELD_MAP: Record<string, string> = {
   isActive: "is_active",
 };
 
-export default defineEventHandler(async (event) => {
-  try {
-    const { supabase } = await requireAdmin(event);
+export default defineApi(async (event) => {
+  const { user } = await requireAdmin(event);
+  const id = routeId(event, "id", "Variant not found.");
+  const body = await parseBody(event, schema);
+  const existing = mustFind(
+    await db().from("product_variants").select("id, sku, products(slug)").eq("id", id).maybeSingle(),
+    "Variant not found.",
+  ) as any;
 
-    const id = Number(getRouterParam(event, "id"));
-    if (!id) throw createError({ statusCode: 400, statusMessage: "Variant ID required" });
-
-    const body = await readValidatedBody(event, variantSchema.parse);
-    const update: Record<string, any> = { updated_at: new Date().toISOString() };
-    for (const [key, value] of Object.entries(body)) {
-      if (value !== undefined && FIELD_MAP[key]) update[FIELD_MAP[key]] = value;
-    }
-
-    const { data, error } = await supabase
-      .from("product_variants")
-      .update(update)
-      .eq("id", id)
-      .select()
-      .single();
-    if (error) throwIfUniqueViolation(error, "A variant with this SKU already exists.");
-
-    return { success: true, variant: data };
-  } catch (error: any) {
-    console.error("Variant update error:", error?.message || error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Invalid variant data",
-        data: error.errors,
-      });
-    }
-    if (error?.statusCode) throw error;
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: error?.message || "Failed to update variant",
-    });
+  const update: Record<string, any> = { updated_at: new Date().toISOString() };
+  for (const [key, value] of Object.entries(body)) {
+    if (value !== undefined && COLUMNS[key]) update[COLUMNS[key]] = value;
   }
+
+  await auditAdminAction(user.email || null, "product_update", `${existing.products?.slug ?? "product"}:variant:${existing.sku}`, getClientIp(event));
+  const { data, error } = await db().from("product_variants").update(update).eq("id", id).select().single();
+  if (error) conflictAs(error, "A variant with this SKU already exists.");
+  return { success: true, variant: toVariant(data) };
 });

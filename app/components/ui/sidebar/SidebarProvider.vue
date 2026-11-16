@@ -2,7 +2,7 @@
 import type { HTMLAttributes, Ref } from "vue"
 import { defaultDocument, useEventListener, useMediaQuery, useVModel } from "@vueuse/core"
 import { TooltipProvider } from "reka-ui"
-import { computed, ref } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { cn } from "@/lib/utils"
 import { provideSidebarContext, SIDEBAR_COOKIE_MAX_AGE, SIDEBAR_COOKIE_NAME, SIDEBAR_KEYBOARD_SHORTCUT, SIDEBAR_WIDTH, SIDEBAR_WIDTH_ICON } from "./utils"
 
@@ -19,7 +19,13 @@ const emits = defineEmits<{
   "update:open": [open: boolean]
 }>()
 
-const isMobile = useMediaQuery("(max-width: 768px)")
+// The server can't know the screen width, so it always renders the desktop
+// sidebar. Only switch to the mobile sheet after mount — otherwise the
+// first client render differs from the server HTML (hydration mismatch).
+const narrow = useMediaQuery("(max-width: 768px)")
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
+const isMobile = computed(() => mounted.value && narrow.value)
 const openMobile = ref(false)
 
 const open = useVModel(props, "open", emits, {

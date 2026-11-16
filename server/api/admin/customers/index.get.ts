@@ -1,57 +1,54 @@
-import { requireAdmin, getServiceSupabase } from "~~/server/utils/supabase";
+import { z } from "zod";
+import { defineApi, parseQuery } from "~~/server/utils/api";
+import { db, must } from "~~/server/utils/db";
+import { requireAdmin } from "~~/server/utils/supabase";
 
-// Registered customers (non-admins), 20 per page, each with their placed
-// order count from a single aggregate query — no N+1. Admins excluded;
-// guests (no account) never appear here by design.
+// GET /api/admin/customers?page= — registered customers (admins excluded,
+// guests never listed), 20 per page, each with order count and lifetime
+// paid spend from one aggregate query (no N+1).
 const PER_PAGE = 20;
-const MAX_PAGES = 500;
+const querySchema = z.object({ page: z.coerce.number().int().min(1).max(500).catch(1).default(1) });
 
-export default defineEventHandler(async (event) => {
-  try {
-    await requireAdmin(event);
+export default defineApi(async (event) => {
+  await requireAdmin(event);
+  const { page } = parseQuery(event, querySchema);
 
-    const query = getQuery(event);
-    const page = Math.min(MAX_PAGES, Math.max(1, Number(query.page) || 1));
+  const { data, error } = await db().auth.admin.listUsers({ page, perPage: PER_PAGE });
+  if (error) throw error;
+  const pageUsers = data?.users || [];
+  const users = pageUsers.filter((u) => (u.app_metadata as any)?.role !== "admin");
 
-    const admin = getServiceSupabase();
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: PER_PAGE });
-    if (error) throw error;
-    const users = (data?.users || []).filter((u) => (u.app_metadata as any)?.role !== "admin");
-
-    const ids = users.map((u) => u.id);
-    let counts = new Map<string, number>();
-    if (ids.length) {
-      const { data: orders, error: ordersError } = await admin
+  const stats = new Map<string, { orders: number; spent: number; lastOrderAt: string | null }>();
+  if (users.length) {
+    const rows = must(
+      await db()
         .from("orders")
-        .select("user_id")
-        .in("user_id", ids);
-      if (ordersError) throw ordersError;
-      for (const o of orders || []) {
-        counts.set(o.user_id, (counts.get(o.user_id) ?? 0) + 1);
-      }
+        .select("user_id, total, status, payment_status, created_at")
+        .in("user_id", users.map((u) => u.id)),
+    ) as any[];
+    for (const o of rows) {
+      const s = stats.get(o.user_id) ?? { orders: 0, spent: 0, lastOrderAt: null };
+      s.orders += 1;
+      if (o.payment_status === "paid" && o.status !== "cancelled") s.spent += Number(o.total) || 0;
+      if (!s.lastOrderAt || o.created_at > s.lastOrderAt) s.lastOrderAt = o.created_at;
+      stats.set(o.user_id, s);
     }
-
-    return {
-      customers: users.map((u) => ({
-        id: u.id,
-        email: u.email,
-        name: (u.user_metadata as any)?.name ?? null,
-        lastSignIn: u.last_sign_in_at ?? null,
-        createdAt: u.created_at,
-        orderCount: counts.get(u.id) ?? 0,
-      })),
-      pagination: { page, perPage: PER_PAGE, hasMore: (data?.users || []).length >= PER_PAGE },
-    };
-  } catch (error: any) {
-    console.error("Admin customers fetch error:", error?.message || error);
-
-    if (error.statusCode) {
-      throw error;
-    }
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Failed to fetch customers",
-    });
   }
+
+  return {
+    customers: users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: (u.user_metadata as any)?.name ?? null,
+      emailConfirmed: !!u.email_confirmed_at,
+      lastSignIn: u.last_sign_in_at ?? null,
+      createdAt: u.created_at,
+      orderCount: stats.get(u.id)?.orders ?? 0,
+      totalSpent: stats.get(u.id)?.spent ?? 0,
+      lastOrderAt: stats.get(u.id)?.lastOrderAt ?? null,
+    })),
+    // Paging is over auth users (admins filtered after), so "more" is
+    // decided by the raw page being full.
+    pagination: { page, perPage: PER_PAGE, hasMore: pageUsers.length >= PER_PAGE },
+  };
 });

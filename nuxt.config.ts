@@ -262,6 +262,9 @@ export default defineNuxtConfig({
     orderNotifyEmails: process.env.ORDER_NOTIFY_EMAILS,
     paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
     flutterwaveSecretKey: process.env.FLUTTERWAVE_SECRET_KEY,
+    // Test-only overrides (https or localhost http); unset in production.
+    paystackApiBase: process.env.PAYSTACK_API_BASE || "",
+    flutterwaveApiBase: process.env.FLUTTERWAVE_API_BASE || "",
     // Signs guest-order tokens (order reads, pay init/verify). Falls back
     // to the service-role key when unset — set explicitly in production.
     guestTokenSecret: process.env.GUEST_TOKEN_SECRET || "",

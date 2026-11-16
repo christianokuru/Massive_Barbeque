@@ -10,9 +10,10 @@ definePageMeta({ layout: "admin", middleware: "admin" });
 // Session comes from the admin middleware (single-flight) — no fetch here.
 
 const requestHeaders = useRequestHeaders(["cookie"]);
-const fee = ref("");
-const current = ref<number | null>(null);
-const loading = ref(true);
+// useState (not ref) so the server-rendered values reach the browser.
+const fee = useState("admin-settings-fee", () => "");
+const current = useState<number | null>("admin-settings-current", () => null);
+const loading = ref(false);
 const saving = ref(false);
 
 async function load() {
@@ -29,7 +30,10 @@ async function load() {
   }
 }
 
-await useAsyncData("admin-settings", load);
+await useAsyncData("admin-settings-load", async () => {
+  await load();
+  return true;
+});
 
 async function save() {
   const naira = Math.round(Number(fee.value));

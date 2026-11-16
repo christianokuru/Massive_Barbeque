@@ -96,6 +96,22 @@ const PAYMENT_BADGE: Record<string, string> = {
   refunded: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
 };
 
+// Payment states read as money words, so "pending" never sits next to an
+// order's own "pending" and looks like the same thing.
+const PAYMENT_LABEL: Record<string, string> = {
+  paid: "paid",
+  pending: "unpaid",
+  failed: "failed",
+  refunded: "refunded",
+};
+
+function paymentChip(o: { status: string; paymentStatus: string }) {
+  if (o.status === "cancelled" && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded") {
+    return { label: "not charged", cls: "bg-muted text-muted-foreground" };
+  }
+  return { label: PAYMENT_LABEL[o.paymentStatus] ?? o.paymentStatus, cls: PAYMENT_BADGE[o.paymentStatus] ?? "" };
+}
+
 function formatNaira(value: number) {
   return `₦${value.toLocaleString("en-NG")}`;
 }
@@ -183,14 +199,18 @@ const columns = columnHelper.columns([
     cell: ({ row }) => h("div", { class: "text-right font-medium tabular-nums" }, formatNaira(Number(row.getValue("total")))),
   }),
   columnHelper.accessor("paymentStatus", {
-    header: "Payment Status",
+    header: "Payment",
     cell: ({ row }) => {
       const status = String(row.getValue("paymentStatus"));
-      return h(Badge, { variant: "secondary", class: PAYMENT_BADGE[status] ?? "" }, () => status);
+      // Cancelled + never paid owes nothing: say so, in a neutral chip.
+      if (row.original.status === "cancelled" && status !== "paid" && status !== "refunded") {
+        return h(Badge, { variant: "secondary", class: "bg-muted text-muted-foreground" }, () => "not charged");
+      }
+      return h(Badge, { variant: "secondary", class: PAYMENT_BADGE[status] ?? "" }, () => PAYMENT_LABEL[status] ?? status);
     },
   }),
   columnHelper.accessor("status", {
-    header: "Food Status",
+    header: "Order status",
     cell: ({ row }) => {
       const status = String(row.getValue("status"));
       return h(Badge, { variant: "secondary", class: STATUS_BADGE[status] ?? "" }, () => status);
@@ -298,7 +318,8 @@ async function applyBulkStatus() {
     <div v-if="title" class="flex items-end justify-between px-4 lg:px-6">
       <h2 class="text-lg font-semibold">{{ title }} <span class="text-sm font-normal text-muted-foreground">({{ orders.length }})</span></h2>
     </div>
-    <div class="flex items-center justify-between px-4 lg:px-6">
+    <div class="flex min-w-0 items-center justify-between gap-2 px-4 lg:px-6">
+      <div v-if="showTabs" class="-mx-1 min-w-0 overflow-x-auto px-1">
       <TabsList v-if="showTabs" class="**:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
         <TabsTrigger value="all">
           All <Badge variant="secondary">{{ tabCounts.all }}</Badge>
@@ -316,10 +337,11 @@ async function applyBulkStatus() {
           Cancelled <Badge variant="secondary">{{ tabCounts.cancelled }}</Badge>
         </TabsTrigger>
       </TabsList>
-      <div class="ml-auto flex items-center gap-2">
+      </div>
+      <div class="ml-auto flex shrink-0 items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" class="hidden md:inline-flex">
               <Columns3 />
               <span class="hidden lg:inline">Customize Columns</span>
               <span class="lg:hidden">Columns</span>
@@ -379,7 +401,32 @@ async function applyBulkStatus() {
     <div
       class="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
     >
-      <div class="overflow-hidden rounded-lg border">
+      <!-- Phones: one card per order (a 7-column table can't fit) -->
+      <ul class="space-y-2 md:hidden">
+        <li v-for="row in table.getRowModel().rows" :key="row.id">
+          <NuxtLink
+            :to="`/admin/orders/${row.original.id}`"
+            class="block rounded-xl border border-border bg-card p-4 transition-colors active:bg-muted/50"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-mono text-xs text-muted-foreground">{{ row.original.orderNumber }}</p>
+                <p class="mt-0.5 truncate text-sm font-semibold">{{ row.original.customerName || row.original.customerEmail }}</p>
+              </div>
+              <p class="shrink-0 text-sm font-semibold tabular-nums">{{ formatNaira(Number(row.original.total)) }}</p>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" :class="STATUS_BADGE[row.original.status] ?? ''">{{ row.original.status }}</Badge>
+              <Badge variant="secondary" :class="paymentChip(row.original).cls">{{ paymentChip(row.original).label }}</Badge>
+              <span class="ml-auto text-xs text-muted-foreground">{{ row.original.itemCount }} item{{ row.original.itemCount === 1 ? "" : "s" }} · {{ formatDate(row.original.createdAt) }}</span>
+            </div>
+          </NuxtLink>
+        </li>
+        <li v-if="!table.getRowModel().rows.length" class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          {{ searchQuery ? "No orders match your search." : emptyText }}
+        </li>
+      </ul>
+      <div class="hidden overflow-hidden rounded-lg border md:block">
         <Table>
           <TableHeader class="bg-muted sticky top-0 z-10">
             <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">

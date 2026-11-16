@@ -1,3 +1,4 @@
+import { paystackBase } from "~~/server/utils/paymentProviders";
 import { z } from 'zod';
 import { isRateLimited } from "~~/server/utils/rateLimit";
 import { getClientIp } from "~~/server/utils/clientIp";
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
     const { order } = await assertOrderAccess(event, payment.order_id, body.guestToken);
 
     // Call Paystack API to verify transaction
-    const response = await fetch(`https://api.paystack.co/transaction/verify/${body.reference}`, {
+    const response = await fetch(`${paystackBase()}/transaction/verify/${body.reference}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${config.paystackSecretKey}`,

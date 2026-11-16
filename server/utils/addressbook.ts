@@ -18,6 +18,18 @@ export const addressSchema = z.object({
 
 export type AddressInput = z.infer<typeof addressSchema>;
 
+/** Bound per account — an address book, not free storage. */
+export const MAX_ADDRESSES = 10;
+
+export async function countAddresses(supabase: any, userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("addresses")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 function toRow(userId: string, input: AddressInput) {
   return {
     user_id: userId,
@@ -72,12 +84,13 @@ export async function updateAddress(supabase: any, userId: string, id: number, i
 }
 
 export async function removeAddress(supabase: any, userId: string, id: number) {
-  const { data: current } = await supabase
+  const { data: current, error: findError } = await supabase
     .from("addresses")
     .select("id, is_default")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
+  if (findError) throw findError;
   if (!current) return false;
 
   const { error } = await supabase
@@ -89,31 +102,34 @@ export async function removeAddress(supabase: any, userId: string, id: number) {
 
   // Deleting the default promotes the newest remaining address.
   if (current.is_default) {
-    const { data: next } = await supabase
+    const { data: next, error: nextError } = await supabase
       .from("addresses")
       .select("id")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (nextError) throw nextError;
     if (next) {
-      await supabase
+      const { error: promoteError } = await supabase
         .from("addresses")
         .update({ is_default: true, updated_at: new Date().toISOString() })
         .eq("id", next.id)
         .eq("user_id", userId);
+      if (promoteError) throw promoteError;
     }
   }
   return true;
 }
 
 export async function setDefaultAddress(supabase: any, userId: string, id: number) {
-  const { data: target } = await supabase
+  const { data: target, error: targetError } = await supabase
     .from("addresses")
     .select("id")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
+  if (targetError) throw targetError;
   if (!target) return false;
 
   const { error: clearError } = await supabase

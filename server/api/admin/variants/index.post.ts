@@ -1,57 +1,40 @@
 import { z } from "zod";
+import { defineApi, parseBody } from "~~/server/utils/api";
+import { db, mustFind } from "~~/server/utils/db";
 import { requireAdmin } from "~~/server/utils/supabase";
-import { throwIfUniqueViolation } from "~~/server/utils/uniqueViolation";
+import { toVariant } from "~~/server/utils/mappers";
+import { auditAdminAction } from "~~/server/utils/adminGovernance";
+import { getClientIp } from "~~/server/utils/clientIp";
+import { conflictAs, variantInputSchema } from "~~/server/utils/catalogAdmin";
 
-const PRICE_RE = /^\d+(\.\d{1,2})?$/;
-
-const variantSchema = z.object({
+// POST /api/admin/variants — add a size/option to a product (audited).
+const schema = variantInputSchema.extend({
   productId: z.number().int().positive("Product is required"),
-  name: z.string().min(1, "Variant name is required").max(200),
-  sku: z.string().min(1, "SKU is required").max(100),
-  price: z.string().regex(PRICE_RE, "Invalid price format"),
-  comparePrice: z.string().regex(PRICE_RE).nullish(),
-  inventoryQty: z.number().int().min(0).max(1000000).default(0),
-  weight: z.string().regex(PRICE_RE).nullish(),
-  isActive: z.boolean().default(true),
 });
 
-export default defineEventHandler(async (event) => {
-  try {
-    const { supabase } = await requireAdmin(event);
-    const body = await readValidatedBody(event, variantSchema.parse);
+export default defineApi(async (event) => {
+  const { user } = await requireAdmin(event);
+  const body = await parseBody(event, schema);
+  const product = mustFind(
+    await db().from("products").select("id, slug").eq("id", body.productId).maybeSingle(),
+    "Product not found.",
+  ) as any;
 
-    const { data, error } = await supabase
-      .from("product_variants")
-      .insert({
-        product_id: body.productId,
-        name: body.name,
-        sku: body.sku,
-        price: body.price,
-        compare_price: body.comparePrice ?? null,
-        inventory_qty: body.inventoryQty,
-        weight: body.weight ?? null,
-        is_active: body.isActive,
-      })
-      .select()
-      .single();
-    if (error) throwIfUniqueViolation(error, "A variant with this SKU already exists.");
-
-    return { success: true, variant: data };
-  } catch (error: any) {
-    console.error("Variant creation error:", error?.message || error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Invalid variant data",
-        data: error.errors,
-      });
-    }
-    if (error?.statusCode) throw error;
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: error?.message || "Failed to create variant",
-    });
-  }
+  await auditAdminAction(user.email || null, "product_update", `${product.slug}:variant-added:${body.sku}`, getClientIp(event));
+  const { data, error } = await db()
+    .from("product_variants")
+    .insert({
+      product_id: body.productId,
+      name: body.name,
+      sku: body.sku,
+      price: body.price,
+      compare_price: body.comparePrice ?? null,
+      inventory_qty: body.inventoryQty,
+      weight: body.weight ?? null,
+      is_active: body.isActive,
+    })
+    .select()
+    .single();
+  if (error) conflictAs(error, "A variant with this SKU already exists.");
+  return { success: true, variant: toVariant(data) };
 });

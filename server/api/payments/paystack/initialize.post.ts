@@ -1,3 +1,4 @@
+import { paystackBase } from "~~/server/utils/paymentProviders";
 import { z } from 'zod';
 import crypto from 'crypto';
 import { confirmUrl } from "~~/server/utils/siteUrl";
@@ -125,7 +126,7 @@ export default defineEventHandler(async (event) => {
     // Call Paystack API to initialize transaction (with OUR reference).
     let data: any = null;
     try {
-      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+      const response = await fetch(`${paystackBase()}/transaction/initialize`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${config.paystackSecretKey}`,

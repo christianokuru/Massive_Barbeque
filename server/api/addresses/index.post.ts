@@ -1,29 +1,14 @@
-import { z } from "zod";
+import { defineApi, enforceRateLimit, parseBody, apiError } from "~~/server/utils/api";
 import { requireUser } from "~~/server/utils/supabase";
-import { addressSchema, createAddress } from "~~/server/utils/addressbook";
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
+import { addressSchema, createAddress, countAddresses, MAX_ADDRESSES } from "~~/server/utils/addressbook";
 
-export default defineEventHandler(async (event) => {
-  try {
-    const ip = getClientIp(event);
-    const { limited } = isRateLimited(`addresses:${ip}`, { limit: 30, windowSecs: 3600 });
-    if (limited) {
-      throw createError({ statusCode: 429, statusMessage: "Too many attempts. Try again later." });
-    }
-
-    const { supabase, user } = await requireUser(event);
-    const body = await readValidatedBody(event, addressSchema.parse);
-
-    return { success: true, address: await createAddress(supabase, user.id, body) };
-  } catch (error: any) {
-    console.error("Address creation error:", error?.message || error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({ statusCode: 400, statusMessage: "Invalid form data", data: error.errors });
-    }
-    if (error?.statusCode) throw error;
-
-    throw createError({ statusCode: 500, statusMessage: "Failed to save address" });
+// POST /api/addresses — save a new address for ME (first one becomes default).
+export default defineApi(async (event) => {
+  enforceRateLimit(event, "addresses", { limit: 30, windowSecs: 3600 });
+  const { supabase, user } = await requireUser(event);
+  const body = await parseBody(event, addressSchema);
+  if ((await countAddresses(supabase, user.id)) >= MAX_ADDRESSES) {
+    apiError(400, `You can save up to ${MAX_ADDRESSES} addresses. Remove one first.`);
   }
+  return { success: true, address: await createAddress(supabase, user.id, body) };
 });

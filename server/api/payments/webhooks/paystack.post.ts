@@ -1,3 +1,4 @@
+import { paystackBase } from "~~/server/utils/paymentProviders";
 import crypto from "crypto";
 import { getServiceSupabase } from "~~/server/utils/supabase";
 import { isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
@@ -110,7 +111,7 @@ export default defineEventHandler(async (event) => {
         // from Paystack, but a leaked secret would still mint free "paid"
         // orders — confirm with Paystack before writing money state.
         const verifyRes = await fetch(
-          `https://api.paystack.co/transaction/verify/${paymentData.reference}`,
+          `${paystackBase()}/transaction/verify/${paymentData.reference}`,
           {
             method: "GET",
             headers: {

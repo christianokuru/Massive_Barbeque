@@ -52,6 +52,9 @@ export async function auditAdminAction(
   targetEmail: string,
   actorIp?: string
 ): Promise<void> {
+  // The column is sized for targets like order ids + transitions; keep
+  // free text bounded.
+  targetEmail = String(targetEmail ?? "").slice(0, 500);
   // Audit integrity: retry once, then fail loud. Callers treat a throw
   // as a 500 so a silent governance action can never complete.
   // The actor_ip column ships in migration 0004; fall back to a row
@@ -65,14 +68,16 @@ export async function auditAdminAction(
     },
     { actor_email: actorEmail, action, target_email: targetEmail.toLowerCase() },
   ];
+  // Supabase reports failures in `error` (it never throws), so each
+  // attempt is checked explicitly — an unchecked insert would let a
+  // governance action complete with no trail.
   let lastError: any = null;
   for (const row of rows) {
     try {
-      await getServiceSupabase().from("admin_audit_log").insert(row);
-      return;
+      const { error } = await getServiceSupabase().from("admin_audit_log").insert(row);
+      if (!error) return;
+      lastError = error;
     } catch (error) {
-      // First shape fails when actor_ip doesn't exist yet — fall
-      // through to the legacy shape before giving up.
       lastError = error;
     }
   }
@@ -112,7 +117,8 @@ export async function findUserIdByEmail(email: string): Promise<string | null> {
   const normalized = email.trim().toLowerCase();
   for (let page = 1; page <= 10; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) return null;
+    // A lookup failure is not "no such user" — surface it.
+    if (error) throw error;
     const hit = (data.users || []).find((u) => u.email?.toLowerCase() === normalized);
     if (hit) return hit.id;
     if ((data.users || []).length < 1000) return null;

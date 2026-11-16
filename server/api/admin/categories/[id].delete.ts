@@ -1,38 +1,28 @@
-import { requireAdmin, getServiceSupabase } from "~~/server/utils/supabase";
+import { apiError, defineApi, routeId } from "~~/server/utils/api";
+import { db, must, mustFind } from "~~/server/utils/db";
+import { requireAdmin } from "~~/server/utils/supabase";
+import { auditAdminAction } from "~~/server/utils/adminGovernance";
+import { getClientIp } from "~~/server/utils/clientIp";
 
-// Delete a category. Products on it detach to uncategorized automatically
+// DELETE /api/admin/categories/:id — products on it become uncategorised
 // (FK ON DELETE SET NULL); subcategories block the delete so they can't
-// silently become top-level — move them first.
-export default defineEventHandler(async (event) => {
-  try {
-    await requireAdmin(event);
+// silently become top-level. Audited.
+export default defineApi(async (event) => {
+  const { user } = await requireAdmin(event);
+  const id = routeId(event, "id", "Category not found.");
+  const existing = mustFind(
+    await db().from("categories").select("id, slug").eq("id", id).maybeSingle(),
+    "Category not found.",
+  ) as any;
 
-    const id = Number(getRouterParam(event, "id"));
-    if (!id) throw createError({ statusCode: 400, statusMessage: "Category ID required" });
+  const { count, error } = await db()
+    .from("categories")
+    .select("id", { count: "exact", head: true })
+    .eq("parent_id", id);
+  if (error) throw error;
+  if ((count ?? 0) > 0) apiError(409, "Move its subcategories elsewhere first.");
 
-    const admin = getServiceSupabase();
-    const { count: childCount } = await admin
-      .from("categories")
-      .select("id", { count: "exact", head: true })
-      .eq("parent_id", id);
-    if ((childCount ?? 0) > 0) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: "Move its subcategories elsewhere first.",
-      });
-    }
-
-    const { data, error } = await admin.from("categories").delete().eq("id", id).select("id");
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw createError({ statusCode: 404, statusMessage: "Category not found." });
-    }
-    return { success: true };
-  } catch (error: any) {
-    console.error("Category delete error:", error?.message || error);
-
-    if (error?.statusCode) throw error;
-
-    throw createError({ statusCode: 500, statusMessage: error?.message || "Failed to delete category" });
-  }
+  await auditAdminAction(user.email || null, "product_delete", `category:${existing.slug}`, getClientIp(event));
+  must(await db().from("categories").delete().eq("id", id));
+  return { success: true };
 });

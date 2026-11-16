@@ -52,3 +52,19 @@ describe("confirmUrl", () => {
     );
   });
 });
+
+import { safeApiBase } from "../server/utils/paymentProviders";
+
+describe("safeApiBase (payment provider hosts)", () => {
+  const real = "https://api.paystack.co";
+  it("defaults to the real provider", () => {
+    expect(safeApiBase("", real)).toBe(real);
+    expect(safeApiBase(undefined, real)).toBe(real);
+  });
+  it("allows https and localhost http only", () => {
+    expect(safeApiBase("https://mock.example.com/", real)).toBe("https://mock.example.com");
+    expect(safeApiBase("http://127.0.0.1:4010", real)).toBe("http://127.0.0.1:4010");
+    expect(safeApiBase("http://evil.example.com", real)).toBe(real);
+    expect(safeApiBase("https://x.com/path?q=1", real)).toBe(real);
+  });
+});

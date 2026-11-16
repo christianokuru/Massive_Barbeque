@@ -185,7 +185,7 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
             </div>
             <div class="flex shrink-0 flex-wrap gap-2">
               <OrderStatus :status="order.status" />
-              <OrderStatus :status="order.paymentStatus" />
+              <OrderStatus kind="payment" :status="order.paymentStatus" :order-status="order.status" />
             </div>
           </div>
         </div>
@@ -256,7 +256,7 @@ const addressLines = computed(() => deliveryAddressLines(order.value?.deliveryAd
           </h2>
           <div class="mt-4 flex items-center justify-between gap-3">
             <p class="m3-body-md capitalize text-muted-foreground">{{ order.paymentMethod ?? "—" }}</p>
-            <OrderStatus :status="order.paymentStatus" />
+            <OrderStatus kind="payment" :status="order.paymentStatus" :order-status="order.status" />
           </div>
           <button
             v-if="canResumePay"

@@ -16,7 +16,7 @@ import { formatNaira, lineTotal } from "~~/shared/utils/pricing";
 
 const route = useRoute();
 const productId = computed(() => String(route.params.id));
-const { addItem } = useCart();
+const { addItem, count: cartCount } = useCart();
 
 /* Multi-select sizes: quantities keyed by variant id ("3" -> 3×Regular).
    Absent/zero means that size isn't ordered. Reset on navigation. */
@@ -32,12 +32,14 @@ const { data: product, pending, error } = await useAsyncData(
   { watch: [productId] },
 );
 
-watch(productId, () => {
-  // Drop staged quantities when navigating between products.
-  quantities.value = {};
-});
-
 const variants = computed(() => product.value?.variants ?? []);
+
+// Fresh picks per product; a product with one size starts with it picked.
+function resetPicks() {
+  const only = variants.value.length === 1 ? variants.value[0] : null;
+  quantities.value = only ? { [String(only.id)]: 1 } : {};
+}
+watch(() => product.value?.id, resetPicks, { immediate: true });
 
 /* Order lines: selected variants (qty > 0), capped at the cart max.
    No stock clamp — everything is always available (grilled to order). */
@@ -50,6 +52,15 @@ const lines = computed(() =>
     .filter((l) => l.qty > 0),
 );
 const canBuy = computed(() => lines.value.length > 0);
+const fromPrice = computed(() => {
+  const prices = variants.value.map((v: any) => Number(v.price)).filter((n: number) => Number.isFinite(n));
+  return prices.length ? Math.min(...prices) : null;
+});
+/* Headline price: the running total once sizes are picked, otherwise the
+   cheapest size ("From ₦7,000") — never a bare ₦0. */
+const priceLabel = computed(() =>
+  canBuy.value ? formatNaira(total.value) : fromPrice.value !== null ? `From ${formatNaira(fromPrice.value)}` : "",
+);
 const total = computed(() =>
   lines.value.reduce((sum, l) => sum + Number(lineTotal(l.variant.price ?? 0, l.qty)), 0),
 );
@@ -183,27 +194,34 @@ function addToCart() {
         sku: variant.sku,
         price: variant.price,
         imageUrl: product.value.imageUrl,
+        productId: Number(product.value.id),
       },
     });
   }
   const summary = lines.value.map((l) => `${l.qty}× ${l.variant.name}`).join(" + ");
   toast.success(`${product.value.name} (${summary}) added to cart`);
-  quantities.value = {};
+  resetPicks();
 }
 
 /* Sticky bar appears once the main buy box scrolls out of view. */
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
+/* Only once the buy box has scrolled up past the top (not while it is
+   still below the fold), and re-attached when the page swaps products. */
 onMounted(() => {
   observer = new IntersectionObserver(
     ([entry]) => {
-      showBar.value = !entry.isIntersecting && !!product.value;
+      showBar.value = !entry.isIntersecting && entry.boundingClientRect.top < 0 && !!product.value;
     },
     { threshold: 0 },
   );
-  if (sentinel.value) observer.observe(sentinel.value);
 });
+watch(sentinel, (el, old) => {
+  if (old) observer?.unobserve(old);
+  if (el) observer?.observe(el);
+  else showBar.value = false;
+}, { flush: "post" });
 
 onUnmounted(() => observer?.disconnect());
 </script>
@@ -240,7 +258,7 @@ onUnmounted(() => observer?.disconnect());
           {{ product.category.name }}
         </p>
         <h1 class="m3-headline-lg mt-2 text-foreground sm:m3-display-sm">{{ product.name }}</h1>
-        <p class="m3-display-sm mt-3 text-primary">{{ formatNaira(total) }}</p>
+        <p v-if="priceLabel" class="m3-display-sm mt-3 text-primary">{{ priceLabel }}</p>
         <p v-if="product.description" class="m3-body-md mt-3 text-muted-foreground">
           {{ product.description }}
         </p>
@@ -255,6 +273,7 @@ onUnmounted(() => observer?.disconnect());
           <p v-else class="m3-body-sm text-muted-foreground">
             This item isn't orderable online yet — check back soon.
           </p>
+          <p v-if="variants.length > 1 && !canBuy" class="m3-body-sm text-muted-foreground">Tap a size to pick it — you can pick more than one.</p>
           <div ref="sentinel" class="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
@@ -265,6 +284,7 @@ onUnmounted(() => observer?.disconnect());
               Add to cart
             </button>
             <NuxtLink
+              v-if="cartCount > 0"
               to="/checkout"
               class="rounded-full border border-border px-8 py-3 text-center text-xs font-medium uppercase tracking-widest text-foreground transition-colors hover:border-primary hover:text-primary"
             >
@@ -285,7 +305,7 @@ onUnmounted(() => observer?.disconnect());
 
     <StickyBuyBar
       :visible="showBar && !pending"
-      :total-label="formatNaira(total)"
+      :total-label="priceLabel"
       :can-buy="canBuy"
       @add="addToCart"
     />

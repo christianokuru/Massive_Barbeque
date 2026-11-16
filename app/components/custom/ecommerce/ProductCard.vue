@@ -64,6 +64,7 @@ function quickAdd() {
       sku: cheapest.sku,
       price: cheapest.price,
       imageUrl: props.product.imageUrl,
+      productId: Number(props.product.id),
     },
   });
   added.value = true;

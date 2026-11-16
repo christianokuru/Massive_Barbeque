@@ -8,12 +8,13 @@ import Logo from "@/components/custom/general/Logo.vue";
 
 const currentYear = new Date().getFullYear();
 
-const explore = [
+const { isLoggedIn } = useAuth();
+const explore = computed(() => [
   { name: "Menu", to: "/menu" },
-  { name: "Track order", to: "/dashboard/orders" },
-  { name: "Account", to: "/dashboard" },
-  { name: "Log in", to: "/login" },
-];
+  { name: "Track order", to: "/track" },
+  { name: "Contact", to: "/contact" },
+  isLoggedIn.value ? { name: "My account", to: "/dashboard" } : { name: "Log in", to: "/login" },
+]);
 
 const socials = [
   { name: "Instagram", href: "https://www.instagram.com/massivebarbeque" },

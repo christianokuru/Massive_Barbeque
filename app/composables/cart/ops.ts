@@ -36,6 +36,7 @@ export function applyAdd(rows: CartRow[], input: AddLineInput): CartRow[] {
       sku: s?.sku ?? "",
       price: s?.price ?? 0,
       imageUrl: s?.imageUrl ?? null,
+      productId: s?.productId,
     },
   ];
 }
@@ -51,4 +52,51 @@ export function applySetQty(rows: CartRow[], id: number, quantity: number): Cart
 
 export function applyRemove(rows: CartRow[], id: number): CartRow[] {
   return rows.filter((r) => r.id !== id);
+}
+
+/** Live catalog values for one variant (from POST /api/cart/quote). */
+export interface QuoteLine {
+  variantId: number;
+  available: boolean;
+  price?: number;
+  productId?: number;
+  productName?: string;
+  variantName?: string;
+  sku?: string;
+  imageUrl?: string | null;
+}
+
+/** Bring rows up to date with the live catalog: refresh names, prices
+    and photos; drop sizes the shop removed. Rows the quote doesn't
+    mention are left alone. Reports what changed so the UI can say so. */
+export function applyQuote(
+  rows: CartRow[],
+  lines: QuoteLine[],
+): { rows: CartRow[]; removed: CartRow[]; priceChanged: boolean } {
+  const byId = new Map(lines.map((l) => [l.variantId, l]));
+  const removed: CartRow[] = [];
+  let priceChanged = false;
+  const next: CartRow[] = [];
+  for (const r of rows) {
+    const q = byId.get(r.variantId);
+    if (!q) {
+      next.push(r);
+      continue;
+    }
+    if (!q.available) {
+      removed.push(r);
+      continue;
+    }
+    if (q.price !== undefined && Number(q.price) !== Number(r.price)) priceChanged = true;
+    next.push({
+      ...r,
+      price: q.price ?? r.price,
+      name: q.productName ?? r.name,
+      variantName: q.variantName ?? r.variantName,
+      sku: q.sku ?? r.sku,
+      imageUrl: q.imageUrl === undefined ? r.imageUrl : q.imageUrl,
+      productId: q.productId ?? r.productId,
+    });
+  }
+  return { rows: next, removed, priceChanged };
 }

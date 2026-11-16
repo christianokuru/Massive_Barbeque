@@ -17,6 +17,7 @@ export interface CartLineSnapshot {
   /** Unit price for display; never trusted for money (server reprices). */
   price: string | number;
   imageUrl?: string | null;
+  productId?: number;
 }
 
 /** One cart line. `id` is the variant id — rows are unique by variant. */
@@ -29,6 +30,8 @@ export interface CartRow {
   sku: string;
   price: string | number;
   imageUrl?: string | null;
+  /** Product page link; filled from the live catalog. */
+  productId?: number;
 }
 
 export interface AddLineInput {

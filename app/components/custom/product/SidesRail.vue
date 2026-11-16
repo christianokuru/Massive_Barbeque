@@ -41,6 +41,7 @@ function quickAdd(side: Record<string, any>) {
       sku: variant.sku,
       price: variant.price,
       imageUrl: side.imageUrl,
+      productId: Number(side.id),
     },
   });
   addedId.value = side.id;

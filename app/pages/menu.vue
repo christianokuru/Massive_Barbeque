@@ -8,29 +8,52 @@ useSeoMeta({
   description: "Order BBQ catfish, chicken, turkey, croaker and sides in Lagos. Delivery and pickup available.",
 });
 
-const search = ref("");
-const categoryId = ref<number | undefined>(undefined);
-const { data, pending, refresh } = await useAsyncData("products", () =>
-  $fetch<{ products: any[] }>("/api/products", {
-    params: { search: search.value || undefined, categoryId: categoryId.value, limit: 60 },
-  }).then((r) => r.products)
-);
+/* Filters live in the address bar (?category=chicken&q=pepper), so a
+   filtered menu can be shared, bookmarked, and survives the back button. */
+const route = useRoute();
+const router = useRouter();
+const search = ref(typeof route.query.q === "string" ? route.query.q : "");
+const categorySlug = ref<string | undefined>(typeof route.query.category === "string" ? route.query.category : undefined);
+
 const { data: categories } = await useAsyncData("categories", () =>
   $fetch<{ categories: any[] }>("/api/categories").then((r) => r.categories ?? [])
 );
+const categoryId = computed(() => (categories.value ?? []).find((c: any) => c.slug === categorySlug.value)?.id);
+// An old or mistyped ?category= shows the full menu instead of a stuck filter.
+if (categorySlug.value && categoryId.value === undefined) categorySlug.value = undefined;
 
-let debounce: any;
-watch([search, categoryId], () => {
+// Search waits for a pause in typing; category taps apply at once.
+const query = ref(search.value.trim());
+let debounce: ReturnType<typeof setTimeout> | undefined;
+watch(search, (v) => {
   clearTimeout(debounce);
-  debounce = setTimeout(() => refresh(), 300);
+  debounce = setTimeout(() => (query.value = v.trim()), 300);
+});
+
+const { data, pending } = await useAsyncData(
+  "menu-products",
+  () =>
+    $fetch<{ products: any[] }>("/api/products", {
+      params: { search: query.value || undefined, categoryId: categoryId.value, limit: 60 },
+    }).then((r) => r.products),
+  { watch: [query, categoryId] },
+);
+
+watch([query, categorySlug], ([q, c]) => {
+  router.replace({ query: { ...route.query, q: q || undefined, category: c || undefined } });
 });
 
 const products = computed(() => data.value ?? []);
-const hasFilter = computed(() => search.value.trim() !== "" || categoryId.value !== undefined);
+const hasFilter = computed(() => search.value.trim() !== "" || categorySlug.value !== undefined);
+
+function pickCategory(slug: string | undefined) {
+  categorySlug.value = categorySlug.value === slug ? undefined : slug;
+}
 
 function clearFilters() {
   search.value = "";
-  categoryId.value = undefined;
+  query.value = "";
+  categorySlug.value = undefined;
 }
 </script>
 
@@ -59,14 +82,14 @@ function clearFilters() {
       <div class="-mx-4 flex flex-nowrap gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0" role="group" aria-label="Filter by category">
         <button
           type="button"
-          :aria-pressed="categoryId === undefined"
+          :aria-pressed="categorySlug === undefined"
           :class="[
             'shrink-0 rounded-full px-4 py-2 text-xs font-medium tracking-[0.1em] uppercase transition-colors',
-            categoryId === undefined
+            categorySlug === undefined
               ? 'bg-primary text-primary-foreground'
               : 'border border-border bg-card hover:bg-secondary-container/60',
           ]"
-          @click="categoryId = undefined"
+          @click="categorySlug = undefined"
         >
           All
         </button>
@@ -74,14 +97,14 @@ function clearFilters() {
           v-for="c in (categories ?? [])"
           :key="c.id"
           type="button"
-          :aria-pressed="categoryId === c.id"
+          :aria-pressed="categorySlug === c.slug"
           :class="[
             'shrink-0 rounded-full px-4 py-2 text-xs font-medium tracking-[0.1em] uppercase transition-colors',
-            categoryId === c.id
+            categorySlug === c.slug
               ? 'bg-primary text-primary-foreground'
               : 'border border-border bg-card hover:bg-secondary-container/60',
           ]"
-          @click="categoryId = categoryId === c.id ? undefined : c.id"
+          @click="pickCategory(c.slug)"
         >
           {{ c.name }}
         </button>

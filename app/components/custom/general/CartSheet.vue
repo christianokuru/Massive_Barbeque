@@ -19,8 +19,21 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const { items, count, subtotal, updateItem, removeItem } = useCart();
+const { items, count, subtotal, updateItem, removeItem, refresh } = useCart();
 const route = useRoute();
+
+/* Opening the cart syncs names/prices with the live menu and drops sizes
+   the shop removed, so the subtotal here matches checkout. */
+const notice = ref("");
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return;
+    notice.value = "";
+    const r = await refresh();
+    notice.value = cartChangeNotice(r);
+  },
+);
 
 function setOpen(value: boolean) {
   emit("update:open", value);
@@ -42,7 +55,8 @@ watch(() => route.fullPath, () => {
         </SheetDescription>
       </SheetHeader>
 
-      <div class="flex-1 overflow-y-auto p-4">
+      <div class="flex-1 overflow-y-auto p-4" data-lenis-prevent>
+        <p v-if="notice" role="status" class="mb-3 rounded-xl bg-secondary-container/60 px-3 py-2 text-sm text-on-secondary-container">{{ notice }}</p>
         <div v-if="items.length" class="space-y-3">
           <CartItem
             v-for="(item, i) in items"
@@ -65,8 +79,9 @@ watch(() => route.fullPath, () => {
       <div v-if="items.length" class="mt-auto border-t border-border p-4">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-muted-foreground">Subtotal</span>
-          <span class="text-lg font-bold">{{ formatNaira(subtotal) }}</span>
+          <span class="text-lg font-bold tabular-nums">{{ formatNaira(subtotal) }}</span>
         </div>
+        <p class="mt-1 text-xs text-muted-foreground">Delivery or free pickup is chosen at checkout.</p>
         <NuxtLink
           to="/checkout"
           class="mt-3 block rounded-full bg-primary px-6 py-3 text-center text-sm font-medium uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90"

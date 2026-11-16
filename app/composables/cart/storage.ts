@@ -21,6 +21,7 @@ function isRow(value: unknown): value is CartRow {
     return false;
   }
   if (typeof row.price === "string" && row.price.length > 32) return false;
+  if (row.productId !== undefined && (typeof row.productId !== "number" || !Number.isInteger(row.productId))) return false;
   for (const key of ["name", "variantName", "sku", "imageUrl"] as const) {
     const v = row[key];
     if (v !== undefined && v !== null && (typeof v !== "string" || (v as string).length > 500)) {

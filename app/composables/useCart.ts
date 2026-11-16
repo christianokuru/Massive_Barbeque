@@ -1,30 +1,37 @@
-// Local-first cart store. Everything is synchronous and instant —
-// add / setQty / remove apply to memory + localStorage with zero
-// network. The server sees the cart exactly once: at checkout, where
-// the client submits ids + quantities and the server prices from the
-// database (never trust client money).
+// Local-first cart store. add / setQty / remove apply to memory +
+// localStorage instantly with zero network. The server prices the cart
+// at checkout (ids + quantities only — client money is never trusted).
 //
-// HOST SEAM: `~~/shared/utils/pricing` is the only host import —
-// repoint it (or inline `Number()` sums) when reusing elsewhere.
+// Loading: the server can't see localStorage, so the cart is read AFTER
+// the page has hydrated (plugins/cart.client.ts calls `hydrate`). Until
+// then `ready` is false and pages that depend on the cart (checkout)
+// show a placeholder instead of "your cart is empty".
+//
+// Freshness: rows keep the name/price from when they were added.
+// `refresh()` asks POST /api/cart/quote for today's values and drops
+// sizes the shop removed, so the buyer never pays a surprise total.
 
-import { applyAdd, applyRemove, applySetQty } from "./cart/ops";
+import { applyAdd, applyQuote, applyRemove, applySetQty, type QuoteLine } from "./cart/ops";
 import { createLocalCartStorage } from "./cart/storage";
 import type { AddLineInput, CartRow, CartStorage } from "./cart/types";
-// HOST: money helpers from the host project.
 import { cartSubtotal } from "~~/shared/utils/pricing";
 
 let storage: CartStorage | null = null;
-let hydrated = false;
+let lastRefresh = 0;
+let inflight: Promise<CartRefreshResult> | null = null;
+const REFRESH_EVERY_MS = 30_000;
+
+export interface CartRefreshResult {
+  removed: CartRow[];
+  priceChanged: boolean;
+  ok: boolean;
+}
 
 export function useCart() {
   const items = useState<CartRow[]>("cart:items", () => []);
+  const ready = useState<boolean>("cart:ready", () => false);
 
   if (!storage) storage = createLocalCartStorage();
-  if (!hydrated) {
-    hydrated = true;
-    const cached = storage.load();
-    if (cached) items.value = cached;
-  }
 
   const count = computed(() =>
     items.value.reduce((n, i) => n + Math.max(0, Math.floor(i.quantity)), 0),
@@ -35,6 +42,12 @@ export function useCart() {
 
   function persist(): void {
     storage!.save(items.value);
+  }
+
+  /** Read the saved cart (client only; call after hydration). */
+  function hydrate(): void {
+    items.value = storage!.load() ?? [];
+    ready.value = true;
   }
 
   function addItem(input: AddLineInput): void {
@@ -57,5 +70,33 @@ export function useCart() {
     persist();
   }
 
-  return { items, count, subtotal, addItem, updateItem, removeItem, clear };
+  /** Sync names/prices with the live catalog. Cheap to call often:
+      repeat calls within 30s reuse the last answer unless `force`. */
+  async function refresh(force = false): Promise<CartRefreshResult> {
+    const none = { removed: [], priceChanged: false, ok: true };
+    if (!items.value.length) return none;
+    if (inflight) return inflight;
+    if (!force && Date.now() - lastRefresh < REFRESH_EVERY_MS) return none;
+    inflight = (async () => {
+      try {
+        const { lines } = await $fetch<{ lines: QuoteLine[] }>("/api/cart/quote", {
+          method: "POST",
+          body: { variantIds: items.value.map((i) => i.variantId) },
+        });
+        const result = applyQuote(items.value, lines);
+        items.value = result.rows;
+        persist();
+        lastRefresh = Date.now();
+        return { removed: result.removed, priceChanged: result.priceChanged, ok: true };
+      } catch {
+        // Offline / server hiccup: keep the saved cart; checkout reprices anyway.
+        return { removed: [], priceChanged: false, ok: false };
+      } finally {
+        inflight = null;
+      }
+    })();
+    return inflight;
+  }
+
+  return { items, ready, count, subtotal, hydrate, addItem, updateItem, removeItem, clear, refresh };
 }

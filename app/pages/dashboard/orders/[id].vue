@@ -4,7 +4,6 @@ import OrderStatus from "@/components/custom/ecommerce/OrderStatus.vue";
 import { toast } from "vue-sonner";
 import { deliveryAddressLines } from "~~/shared/utils/orderDisplay";
 import { canStartPayment, canUserCancelOrder } from "~~/shared/utils/orderStatus";
-import { assertGatewayUrl } from "~~/shared/utils/payments";
 import { guestTokenForOrder } from "@/utils/guestOrderToken";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
@@ -26,7 +25,6 @@ const cancelCheck = computed(() =>
   canUserCancelOrder(order.value?.status, order.value?.paymentStatus)
 );
 
-const paying = ref(false);
 const cancelling = ref(false);
 const confirmCancel = ref(false);
 const reordering = ref(false);
@@ -37,39 +35,9 @@ watch(
   }
 );
 
-async function resumePay() {
-  const o = order.value;
-  if (!o || paying.value) return;
-  paying.value = true;
-  try {
-    const initPath =
-      o.paymentMethod === "flutterwave"
-        ? "/api/payments/flutterwave/initialize"
-        : "/api/payments/paystack/initialize";
-    const payment = await $fetch<{ authorization_url?: string; link?: string }>(initPath, {
-      method: "POST",
-      // No amount: the server prices from the order. Guest token only
-      // exists same-tab (sessionStorage); logged-in buyers use session.
-      body: {
-        email: o.customerEmail,
-        orderId: o.id,
-        guestToken: guestTokenForOrder(o.id),
-        customerName: o.customerName,
-        customerPhone: o.customerPhone,
-      },
-    });
-    const url = payment.authorization_url ?? payment.link;
-    if (!url) throw new Error("Payment could not be started.");
-    window.location.href = assertGatewayUrl(url);
-  } catch (e: any) {
-    if (e?.message === "bad-gateway-url") {
-      toast.error("Payment could not be started. Try again.");
-    } else {
-      toast.error(e?.data?.statusMessage || e?.message || "Could not start payment.");
-    }
-  } finally {
-    paying.value = false;
-  }
+const { paying, payNow } = usePayOrder();
+function resumePay() {
+  if (order.value) payNow(order.value);
 }
 
 // Order again: restore every line that still has a variant behind it.

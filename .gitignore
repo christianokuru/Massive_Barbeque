@@ -24,3 +24,7 @@ logs
 
 # Private security audit — never commit or push to GitHub
 SECURITY-AUDIT-PRIVATE.md
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/

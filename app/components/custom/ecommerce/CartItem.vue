@@ -1,68 +1,73 @@
 <script setup lang="ts">
-const props = defineProps({
-  item: { type: Object, required: true },
-});
-const emit = defineEmits(["update", "remove"]);
+import M3Icon from "@/components/M3Icon.vue";
+import { formatNaira } from "~~/shared/utils/pricing";
+import type { CartRow } from "~/composables/cart/types";
 
-const qty = ref(props.item.quantity);
-watch(
-  () => props.item.quantity,
-  (v) => (qty.value = v)
-);
+/* One cart line: photo, name, size, stepper, line total.
+   At quantity 1 the minus button becomes a bin — no dead buttons. */
 
-// Clamp typed input to sane integers — raw v-model values (0, -5,
-// NaN, 999999) must never reach the cart.
-function commitQty() {
-  const n = Number(qty.value);
-  const clamped = !Number.isFinite(n) ? 1 : Math.min(99, Math.max(1, Math.floor(n)));
-  qty.value = clamped;
-  emit("update", clamped);
-}
+const NuxtLink = resolveComponent("NuxtLink");
+const props = defineProps<{ item: CartRow; compact?: boolean }>();
+const emit = defineEmits<{ update: [qty: number]; remove: [] }>();
 
-const lineTotal = computed(() => Number(props.item.price ?? 0) * props.item.quantity);
-const formatNaira = (n: number) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
+const unit = computed(() => Number(props.item.price ?? 0));
+const lineTotal = computed(() => unit.value * props.item.quantity);
+const productLink = computed(() => (props.item.productId ? `/product/${props.item.productId}` : undefined));
 </script>
 
 <template>
-  <div class="flex gap-4 rounded-lg border border-border bg-card p-4">
-    <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-      <img
-        v-if="item.imageUrl"
-        :src="item.imageUrl"
-        :alt="item.name"
-        class="h-full w-full object-cover"
-      />
-      <span v-else class="text-2xl">🔥</span>
-    </div>
-    <div class="min-w-0 flex-1">
-      <p class="truncate font-medium text-foreground">{{ item.name }}</p>
-      <p class="text-sm text-muted-foreground">{{ item.variantName }} · {{ item.sku }}</p>
-      <div class="mt-2 flex items-center justify-between">
-        <div class="flex items-center gap-2">
+  <div class="flex gap-3 rounded-2xl border border-border bg-card p-3">
+    <component
+      :is="productLink ? NuxtLink : 'div'"
+      :to="productLink"
+      class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted"
+      :aria-label="productLink ? `View ${item.name}` : undefined"
+    >
+      <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" class="h-full w-full object-cover" loading="lazy" />
+      <M3Icon v-else name="restaurant" :size="28" class="text-muted-foreground" />
+    </component>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="truncate font-medium text-foreground">{{ item.name || "Item" }}</p>
+          <p class="text-sm text-muted-foreground">
+            {{ item.variantName }}<span v-if="item.variantName"> · </span>{{ formatNaira(unit) }} each
+          </p>
+        </div>
+        <button
+          type="button"
+          class="-mr-1 -mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          :aria-label="`Remove ${item.name} from cart`"
+          @click="emit('remove')"
+        >
+          <M3Icon name="close" :size="18" />
+        </button>
+      </div>
+
+      <div class="mt-auto flex items-center justify-between gap-2 pt-2">
+        <div class="inline-flex items-center rounded-full border border-border" role="group" :aria-label="`Quantity of ${item.name}`">
           <button
-            class="rounded border border-border px-2 py-1 text-sm"
-            @click="qty > 1 && emit('update', qty - 1)"
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-secondary-container/60"
+            :aria-label="item.quantity > 1 ? 'Decrease quantity' : `Remove ${item.name}`"
+            @click="item.quantity > 1 ? emit('update', item.quantity - 1) : emit('remove')"
           >
-            −
+            <M3Icon :name="item.quantity > 1 ? 'remove' : 'delete'" :size="18" />
           </button>
-          <input
-            v-model.number="qty"
-            type="number"
-            min="1"
-            max="99"
-            class="w-14 rounded border border-border px-2 py-1 text-center text-sm"
-            @change="commitQty"
-          />
-          <button class="rounded border border-border px-2 py-1 text-sm" @click="emit('update', qty + 1)">
-            +
+          <span class="min-w-8 text-center text-sm font-semibold tabular-nums" aria-live="polite">{{ item.quantity }}</span>
+          <button
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-secondary-container/60 disabled:opacity-40"
+            aria-label="Increase quantity"
+            :disabled="item.quantity >= 99"
+            @click="emit('update', item.quantity + 1)"
+          >
+            <M3Icon name="add" :size="18" />
           </button>
         </div>
-        <p class="text-sm font-semibold">{{ formatNaira(lineTotal) }}</p>
+        <p class="font-semibold tabular-nums">{{ formatNaira(lineTotal) }}</p>
       </div>
-      <button class="mt-2 text-xs text-destructive hover:underline" @click="emit('remove')">
-        Remove
-      </button>
     </div>
   </div>
 </template>

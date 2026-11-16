@@ -79,3 +79,21 @@ export function guestTokenForOrder(id: string | undefined): string | undefined {
     return undefined;
   }
 }
+
+/** Guest orders whose pass is saved on this device, newest first. */
+export function savedGuestOrderIds(limit = 10): string[] {
+  const store = local();
+  if (!store) return [];
+  const found: Array<{ id: string; x: number }> = [];
+  try {
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+      if (!key || !key.startsWith(PREFIX)) continue;
+      const entry = readEntry(store.getItem(key));
+      if (entry && entry.x > Date.now()) found.push({ id: key.slice(PREFIX.length), x: entry.x });
+    }
+  } catch {
+    return [];
+  }
+  return found.sort((a, b) => b.x - a.x).slice(0, limit).map((f) => f.id);
+}

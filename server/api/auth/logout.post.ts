@@ -1,15 +1,11 @@
+import { defineApi } from "~~/server/utils/api";
 import { getSupabase } from "~~/server/utils/supabase";
 
-export default defineEventHandler(async (event) => {
-  try {
-    const supabase = getSupabase(event);
-    await supabase.auth.signOut();
-    return { success: true };
-  } catch (error: any) {
-    console.error("Logout error:", error?.message || error);
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Sign-out failed. Please try again.",
-    });
-  }
+// POST /api/auth/logout — sign out THIS device only. ("global" would also
+// end the customer's sessions on every other phone/laptop.) Admin demotion
+// still revokes everything server-side via auth.admin.signOut.
+export default defineApi(async (event) => {
+  const { error } = await getSupabase(event).auth.signOut({ scope: "local" });
+  if (error && !/session/i.test(error.message)) throw error;
+  return { success: true };
 });

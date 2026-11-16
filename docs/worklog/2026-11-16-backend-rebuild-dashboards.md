@@ -47,3 +47,31 @@ dashboards, verified in a real browser.
 - Auth, contact, public catalog, order-create and payment routes keep their
   already-reviewed handlers (not moved onto `defineApi`).
 - Rate limits are still in-memory (single server).
+
+## Part 2 — remaining routes moved (same day)
+Auth (login, register, reset, logout, session), contact, public catalog,
+settings, sitemap, order create, payment start/verify, both webhooks and
+refunds now run on the foundation. New shared payment layer:
+`paymentGateway.ts` (provider calls), `paymentService.ts` (start / check /
+settle), `webhookAuth.ts`, `paymentSchemas.ts`.
+
+Verified with a before/after API contract snapshot (61 cases) — the only
+differences are the intended ones below — plus the browser E2E suites and
+the security sweep (now including a signed-but-fake webhook and URL-path
+tricks against the providers).
+
+Fixed / changed on purpose:
+- Contact form returned 500 for every request when RESEND_API_KEY was unset
+  (even the honeypot). Now 400 for bad input, honeypot → success, no key →
+  503, send failure → 502.
+- Logout signed the customer out on EVERY device (Supabase default
+  "global"). Now this device only.
+- Flutterwave verify put the client's transaction id straight into the
+  provider URL before checking it (could reach other provider endpoints
+  with our secret key). Ids must be digits; all path values are encoded.
+- Paystack verify now checks the reference is ours before calling Paystack.
+- Login: existence lookup only after a failed password (was a full user
+  scan on every login); unconfirmed email → 403 with a clear message.
+- Validation errors say what's wrong ("Enter a valid email address.")
+  instead of h3's generic "Validation Error".
+- Unknown Flutterwave transaction → 404 (was a vague 400).

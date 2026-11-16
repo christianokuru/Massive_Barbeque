@@ -1,235 +1,158 @@
 import { z } from "zod";
-import { getServiceSupabase, getAuthUser } from "~~/server/utils/supabase";
+import crypto from "crypto";
+import { apiError, defineApi, enforceRateLimit, parseBody } from "~~/server/utils/api";
+import { db, must } from "~~/server/utils/db";
+import { getAuthUser } from "~~/server/utils/supabase";
 import { toOrder } from "~~/server/utils/mappers";
 import { cartSubtotal, lineTotal } from "~~/shared/utils/pricing";
 import { getDeliveryFee } from "~~/server/utils/siteSettings";
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
 import { getGuestTokenSecret, issueGuestToken } from "~~/server/utils/guestToken";
-import crypto from "crypto";
 
-// The cart lives in the browser; the client submits ids + quantities
-// ONLY. Prices, availability, and totals are resolved from the live
-// catalog below — client money is never trusted.
+// POST /api/orders — place an order (guests and signed-in customers).
 //
-// Writes go through the service role: RLS carries no customer insert
-// policy for orders, and every value written here is server-derived
-// (identity from the verified session, prices from the database).
+// The browser sends ids + quantities ONLY. Prices, availability and totals
+// come from the live catalog; the delivery fee from settings. A signed-in
+// buyer's email comes from their session, never the form. Guests get a
+// signed pass (guestToken) bound to order + email for every later step.
+// Service role writes: there is no customer insert policy on orders.
 const PICKUP_GRACE_MS = 5 * 60 * 1000;
 
-const orderItemSchema = z.object({
-  variantId: z.number().int().positive(),
-  quantity: z.number().int().min(1).max(99),
-});
-
-const orderSchema = z
+const schema = z
   .object({
-    items: z.array(orderItemSchema).min(1).max(50),
+    items: z
+      .array(z.object({
+        variantId: z.number().int().positive(),
+        quantity: z.number().int().min(1, "Quantity must be at least 1.").max(99),
+      }))
+      .min(1, "Your cart is empty.")
+      .max(50),
     fulfillmentType: z.enum(["delivery", "pickup"]),
-    customerEmail: z.string().email().max(254).toLowerCase().trim(),
-    customerName: z.string().min(1).max(100),
-    customerPhone: z.string().min(1).max(30),
+    customerEmail: z.string().trim().toLowerCase().email("Enter a valid email address.").max(254),
+    customerName: z.string().trim().min(1, "Enter your name.").max(100),
+    customerPhone: z.string().trim().min(1, "Enter your phone number.").max(30),
     deliveryAddress: z
       .object({
-        firstName: z.string().min(1).max(100),
-        lastName: z.string().min(1).max(100),
-        phone: z.string().min(1).max(30),
-        addressLine1: z.string().min(1).max(300),
-        addressLine2: z.string().max(300).optional(),
-        city: z.string().min(1).max(100),
-        state: z.string().min(1).max(100),
-        postalCode: z.string().max(20).optional(),
+        firstName: z.string().trim().min(1).max(100),
+        lastName: z.string().trim().min(1).max(100),
+        phone: z.string().trim().min(1).max(30),
+        addressLine1: z.string().trim().min(1, "Enter a delivery address.").max(300),
+        addressLine2: z.string().trim().max(300).optional(),
+        city: z.string().trim().min(1).max(100),
+        state: z.string().trim().min(1).max(100),
+        postalCode: z.string().trim().max(20).optional(),
       })
       .optional(),
     pickupTime: z
       .string()
       .max(100)
       .optional()
-      .refine((v) => v === undefined || Number.isFinite(Date.parse(v)), {
-        message: "Invalid pickup time",
-      })
-      // Any future time (small grace for clock differences between the
-      // buyer's device and the server).
+      .refine((v) => v === undefined || Number.isFinite(Date.parse(v)), { message: "Invalid pickup time" })
+      // Any future time (small grace for clock differences).
       .refine((v) => v === undefined || Date.parse(v) > Date.now() - PICKUP_GRACE_MS, {
         message: "Pickup time must be in the future",
       }),
     notes: z.string().max(2000).optional(),
     paymentMethod: z.enum(["paystack", "flutterwave"]),
   })
-  // Delivery is meaningless without an address — reject rather than
-  // storing a deliver-to-nowhere order.
-  .refine((data) => data.fulfillmentType === "pickup" || data.deliveryAddress, {
+  .refine((d) => d.fulfillmentType === "pickup" || d.deliveryAddress, {
     message: "Delivery address is required for delivery orders",
     path: ["deliveryAddress"],
   })
-  // The kitchen needs to know when a pickup order will be collected.
-  .refine((data) => data.fulfillmentType === "delivery" || !!data.pickupTime, {
+  .refine((d) => d.fulfillmentType === "delivery" || !!d.pickupTime, {
     message: "Pickup time is required for pickup orders",
     path: ["pickupTime"],
   });
 
-export default defineEventHandler(async (event) => {
-  try {
-    // Cheap to create, easy to abuse for DB bloat: 20 per IP per 15 min.
-    const ip = getClientIp(event);
-    const { limited, retryAfterSecs } = isRateLimited(`orders:${ip}`, {
-      limit: 20,
-      windowSecs: 900,
-    });
-    if (limited) {
-      setResponseHeader(event, "Retry-After", String(retryAfterSecs));
-      throw createError({
-        statusCode: 429,
-        statusMessage: "Too many orders. Try again later.",
-      });
-    }
+export default defineApi(async (event) => {
+  // Cheap to create, easy to abuse for DB bloat: 20 per client per 15 min.
+  enforceRateLimit(event, "orders", { limit: 20, windowSecs: 900, message: "Too many orders. Try again later." });
+  const body = await parseBody(event, schema);
+  const { user } = await getAuthUser(event);
+  const userId = user?.id ?? null;
+  const customerEmail = (user?.email || body.customerEmail).toLowerCase();
 
-    const { user } = await getAuthUser(event);
-    const userId = user?.id ?? null;
-    const supabase = getServiceSupabase();
+  // Merge duplicate lines so each size is priced once (capped at 99).
+  const quantities = new Map<number, number>();
+  for (const item of body.items) {
+    quantities.set(item.variantId, Math.min(99, (quantities.get(item.variantId) ?? 0) + item.quantity));
+  }
+  const variantIds = [...quantities.keys()];
 
-    const body = await readValidatedBody(event, orderSchema.parse);
-
-    // A logged-in caller can't plant orders into someone else's history:
-    // identity comes from the verified session, never the client.
-    const customerEmail = (user?.email || body.customerEmail).toLowerCase();
-
-    // Merge duplicate lines so each variant is priced once.
-    const quantities = new Map<number, number>();
-    for (const item of body.items) {
-      quantities.set(item.variantId, (quantities.get(item.variantId) ?? 0) + item.quantity);
-    }
-    const variantIds = [...quantities.keys()];
-
-    // Live catalog truth: variant must exist and be active under an
-    // active product. Anything else means a stale cart.
-    const { data: variants, error: variantsError } = await supabase
+  // Live catalog truth: active size under an active product. Anything else
+  // means a stale cart. No stock gate — grilled to order (owner decision
+  // 2026-09-20); inventory_qty is informational.
+  const variants = must(
+    await db()
       .from("product_variants")
       .select("*, products!inner(id, name, is_active)")
       .in("id", variantIds)
-      .eq("is_active", true);
-    if (variantsError) throw variantsError;
-    const live = (variants || []).filter((v: any) => v.products?.is_active !== false);
-    if (live.length !== variantIds.length) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Some items in your cart are no longer available.",
-      });
-    }
+      .eq("is_active", true),
+  ) as any[];
+  const live = variants.filter((v) => v.products?.is_active !== false);
+  if (live.length !== variantIds.length) apiError(400, "Some items in your cart are no longer available.");
 
-    // No stock gate: the kitchen grills to order and everything is always
-    // available (owner decision 2026-09-20). Availability = the variant
-    // exists and is active under an active product (checked above).
-    // inventory_qty remains in the schema as informational metadata only.
+  const lines = live.map((v) => ({ variant: v, quantity: quantities.get(v.id)!, total: lineTotal(v.price, quantities.get(v.id)!) }));
+  const subtotal = cartSubtotal(lines.map((l) => ({ price: l.variant.price, quantity: l.quantity })));
+  const deliveryFee = body.fulfillmentType === "delivery" ? await getDeliveryFee() : 0;
+  const total = subtotal + deliveryFee;
 
-    const lines = live.map((v: any) => {
-      const quantity = Math.min(99, quantities.get(v.id) ?? 1);
-      return { variant: v, quantity, total: lineTotal(v.price, quantity) };
-    });
-    const subtotal = cartSubtotal(
-      lines.map((l) => ({ price: l.variant.price, quantity: l.quantity }))
-    );
-    // Authoritative totals: server-priced lines + the admin-set delivery
-    // fee (cached, falls back to the constant). Client money is display.
-    const configuredFee = await getDeliveryFee();
-    const deliveryFee = body.fulfillmentType === "delivery" ? configuredFee : 0;
-    const total = subtotal + deliveryFee;
+  const orderId = crypto.randomUUID();
+  const a = body.deliveryAddress;
+  must(
+    await db().from("orders").insert({
+      id: orderId,
+      user_id: userId,
+      // Unpredictable, collision-resistant (time-based numbers collided and
+      // leaked order volume).
+      order_number: `MB${crypto.randomInt(10000000, 100000000)}`,
+      status: "pending",
+      fulfillment_type: body.fulfillmentType,
+      subtotal: subtotal.toFixed(2),
+      delivery_fee: deliveryFee.toFixed(2),
+      total: total.toFixed(2),
+      customer_email: customerEmail,
+      customer_name: body.customerName,
+      customer_phone: body.customerPhone,
+      // Stored raw snake_case (readers use deliveryAddressLines).
+      delivery_address: a
+        ? {
+            first_name: a.firstName,
+            last_name: a.lastName,
+            phone: a.phone,
+            address_line_1: a.addressLine1,
+            address_line_2: a.addressLine2 || null,
+            city: a.city,
+            state: a.state,
+            postal_code: a.postalCode || null,
+          }
+        : null,
+      pickup_time: body.fulfillmentType === "pickup" && body.pickupTime ? new Date(body.pickupTime).toISOString() : null,
+      notes: body.notes?.trim() || null,
+      payment_method: body.paymentMethod,
+      payment_status: "pending",
+    }),
+  );
 
-    // Unpredictable, collision-resistant order numbers (Date.now-based
-    // numbers collide under concurrency and leak order rate).
-    const orderNumber = `MB${crypto.randomInt(10000000, 100000000)}`;
-
-    const { data: newOrder, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        id: crypto.randomUUID(),
-        user_id: userId,
-        order_number: orderNumber,
-        status: "pending",
-        fulfillment_type: body.fulfillmentType,
-        subtotal: subtotal.toFixed(2),
-        delivery_fee: deliveryFee.toFixed(2),
-        total: total.toFixed(2),
-        customer_email: customerEmail,
-        customer_name: body.customerName,
-        customer_phone: body.customerPhone,
-        delivery_address: body.deliveryAddress
-          ? {
-              first_name: body.deliveryAddress.firstName,
-              last_name: body.deliveryAddress.lastName,
-              phone: body.deliveryAddress.phone,
-              address_line_1: body.deliveryAddress.addressLine1,
-              address_line_2: body.deliveryAddress.addressLine2 ?? null,
-              city: body.deliveryAddress.city,
-              state: body.deliveryAddress.state,
-              postal_code: body.deliveryAddress.postalCode ?? null,
-            }
-          : null,
-        // Pickup time only means something for pickup orders.
-        pickup_time:
-          body.fulfillmentType === "pickup" && body.pickupTime
-            ? new Date(body.pickupTime).toISOString()
-            : null,
-        notes: body.notes || null,
-        payment_method: body.paymentMethod,
-        payment_status: "pending",
-      })
-      .select()
-      .single();
-    if (orderError) throw orderError;
-
-    const { error: orderItemsError } = await supabase.from("order_items").insert(
-      lines.map((l: any) => ({
-        order_id: newOrder.id,
-        variant_id: l.variant.id,
-        product_name: l.variant.products.name,
-        variant_name: l.variant.name,
-        sku: l.variant.sku,
-        quantity: l.quantity,
-        unit_price: Number(l.variant.price).toFixed(2),
-        total_price: l.total.toFixed(2),
-      }))
-    );
-    if (orderItemsError) {
-      // No transaction across the two inserts: remove the empty order so
-      // a half-saved order (no items) never reaches the kitchen or admin.
-      const { error: cleanupError } = await supabase.from("orders").delete().eq("id", newOrder.id);
-      if (cleanupError) {
-        console.error(`Order ${newOrder.id} left without items (cleanup failed):`, cleanupError.message || cleanupError);
-      }
-      throw orderItemsError;
-    }
-
-    const { data: order, error: fetchError } = await supabase
-      .from("orders")
-      .select("*, order_items(*)")
-      .eq("id", newOrder.id)
-      .single();
-    if (fetchError) throw fetchError;
-
-    // Guest orders get a signed token (HMAC, bound to order + email,
-    // 30-day expiry). The buyer must present it to read the order, init
-    // payment, or verify — UUID alone no longer authorizes anything.
-    const guestToken = userId
-      ? undefined
-      : issueGuestToken(newOrder.id, customerEmail, getGuestTokenSecret(event));
-
-    return { success: true, order: toOrder(order), guestToken };
-  } catch (error: any) {
-    console.error("Order creation error:", error?.message || error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Invalid form data",
-        data: error.errors,
-      });
-    }
-    if (error?.statusCode) throw error;
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Failed to create order. Please try again.",
-    });
+  const { error: itemsError } = await db().from("order_items").insert(
+    lines.map((l) => ({
+      order_id: orderId,
+      variant_id: l.variant.id,
+      product_name: l.variant.products.name,
+      variant_name: l.variant.name,
+      sku: l.variant.sku,
+      quantity: l.quantity,
+      unit_price: Number(l.variant.price).toFixed(2),
+      total_price: l.total.toFixed(2),
+    })),
+  );
+  if (itemsError) {
+    // No transaction across the two inserts: never leave an empty order.
+    const { error: cleanupError } = await db().from("orders").delete().eq("id", orderId);
+    if (cleanupError) console.error(`[orders] ${orderId} left without items:`, cleanupError.message);
+    throw itemsError;
   }
+
+  const order = must(await db().from("orders").select("*, order_items(*)").eq("id", orderId).single());
+  const guestToken = userId ? undefined : issueGuestToken(orderId, customerEmail, getGuestTokenSecret(event));
+  return { success: true, order: toOrder(order), guestToken };
 });

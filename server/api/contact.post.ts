@@ -1,97 +1,57 @@
 import { Resend } from "resend";
 import { z } from "zod";
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
+import { apiError, defineApi, enforceRateLimit, parseBody } from "~~/server/utils/api";
+import { escapeHtml } from "~~/server/utils/orderEmailTemplate";
 
-const contactSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email().max(254),
-  brand: z.string().min(1).max(200),
-  message: z.string().min(10).max(2000),
-  // Honeypot: real forms never send it; bots fill it. Reject silently
-  // as success so spammers can't probe the filter.
+// POST /api/contact { name, email, brand, message, company? }
+// Emails the shop inbox (CONTACT_RECEIVER_EMAIL). Unauthenticated email
+// relay, so: 5 per client per hour, field caps, and a honeypot.
+const schema = z.object({
+  name: z.string({ required_error: "Please enter your name." }).trim().min(2, "Please enter your name.").max(100),
+  email: z.string({ required_error: "Enter a valid email address." }).trim().email("Enter a valid email address.").max(254),
+  brand: z.string({ required_error: "Please tell us your brand or company." }).trim().min(1, "Please tell us your brand or company.").max(200),
+  message: z.string({ required_error: "Please write a message." }).trim().min(10, "Message must be at least 10 characters.").max(2000),
+  // Honeypot: real visitors never fill it (hidden field).
   company: z.string().max(0).optional(),
 });
 
-// Escape user input interpolated into the HTML email — the inbox is a
-// trust boundary too (stored-XSS-style payloads in admin mail clients).
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig();
-  // Abuse protection: unauthenticated email relay, 5 per IP per hour.
-  const ip = getClientIp(event);
-  const { limited, retryAfterSecs } = isRateLimited(`contact:${ip}`, {
+export default defineApi(async (event) => {
+  enforceRateLimit(event, "contact", {
     limit: 5,
     windowSecs: 3600,
+    message: "Too many messages. Try again later.",
   });
-  if (limited) {
-    setResponseHeader(event, "Retry-After", String(retryAfterSecs));
-    throw createError({
-      statusCode: 429,
-      statusMessage: "Too many messages. Try again later.",
-    });
+
+  // Bots fill the hidden field: pretend success and send nothing, so the
+  // filter can't be probed.
+  const raw = ((await readBody(event).catch(() => ({}))) || {}) as Record<string, unknown>;
+  if (typeof raw.company === "string" && raw.company.length > 0) return { success: true };
+
+  const body = await parseBody(event, schema);
+  const config = useRuntimeConfig(event);
+  if (!config.resendApiKey) {
+    console.error("[contact] RESEND_API_KEY is not set - message not sent.");
+    apiError(503, "Our contact form is temporarily unavailable. Please email us directly.");
   }
-  const resend = new Resend(config.resendApiKey);
 
-  try {
-    const body = await readBody(event);
-
-    // Honeypot trip: pretend success, send nothing (silent = unprobable).
-    if (body && typeof (body as any).company === "string" && (body as any).company.length > 0) {
-      return { success: true };
-    }
-
-    // Validate request body
-    const validatedData = contactSchema.parse(body);
-
-    const { name, email, brand, message } = validatedData;
-
-    const { data, error } = await resend.emails.send({
-      from: config.fromEmail || "onboarding@resend.dev",
-      to: [config.contactReceiverEmail || "info@massivebarbeque.com"],
-      subject: `New Contact Form Submission from ${escapeHtml(brand)}`,
-      replyTo: email,
-      html: `
-        <h2>New Contact Message</h2>
-        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p><strong>Brand:</strong> ${escapeHtml(brand)}</p>
-        <p><strong>Message:</strong></p>
-        <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
-      `,
-    });
-
-    if (error) {
-      console.error("Resend error:", error);
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Failed to send email",
-      });
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Server error:", error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Invalid form data",
-        data: error.errors,
-      });
-    }
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: error.statusMessage || "Internal Server Error",
-    });
+  const { error } = await new Resend(config.resendApiKey).emails.send({
+    from: config.fromEmail || "onboarding@resend.dev",
+    to: [config.contactReceiverEmail || "info@massivebarbeque.com"],
+    replyTo: body.email,
+    subject: `New contact message from ${body.brand.replace(/[\r\n]+/g, " ")}`,
+    text: `Name: ${body.name}\nEmail: ${body.email}\nBrand: ${body.brand}\n\n${body.message}`,
+    html: `
+      <h2>New Contact Message</h2>
+      <p><strong>Name:</strong> ${escapeHtml(body.name)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(body.email)}</p>
+      <p><strong>Brand:</strong> ${escapeHtml(body.brand)}</p>
+      <p><strong>Message:</strong></p>
+      <p style="white-space: pre-wrap;">${escapeHtml(body.message)}</p>
+    `,
+  });
+  if (error) {
+    console.error("[contact] send failed:", error);
+    apiError(502, "Your message couldn't be sent. Please try again in a moment.");
   }
+  return { success: true };
 });

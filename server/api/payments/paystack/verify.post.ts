@@ -1,111 +1,19 @@
-import { paystackBase } from "~~/server/utils/paymentProviders";
-import { z } from 'zod';
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
-import { assertOrderAccess } from "~~/server/utils/orderAccess";
+import { z } from "zod";
+import { defineApi, enforceRateLimit, parseBody } from "~~/server/utils/api";
+import { checkPayment } from "~~/server/utils/paymentService";
 
-// Display-only for paid: webhooks are the sole paid writer. One
-// exception (PAY1): a DEFINITIVE provider failure flips a still-pending
-// row to failed — this direction grants nothing, it only stops a dead
-// reference from looking payable forever. Anything ambiguous is left
-// untouched. Returns a minimal paid/orderId/amount tuple — never the raw
-// provider payload (it carries customer email, card auth/BIN, etc.).
-const paystackVerifySchema = z.object({
-  reference: z.string().min(1).max(200),
+// POST /api/payments/paystack/verify { reference, guestToken? }
+// → { paid, orderId, amount, currency }. Display only — webhooks mark paid.
+const schema = z.object({
+  reference: z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/, "Transaction not found."),
   guestToken: z.string().max(4096).optional(),
 });
 
-export default defineEventHandler(async (event) => {
-  try {
-    const config = useRuntimeConfig();
-    const body = await readValidatedBody(event, paystackVerifySchema.parse);
-    const ip = getClientIp(event);
-    const { limited } = isRateLimited(`pay-verify:${ip}:${body.reference.slice(0, 64)}`, { limit: 60, windowSecs: 3600 });
-    if (limited) {
-      throw createError({ statusCode: 429, statusMessage: "Too many verification attempts. Try again later." });
-    }
-
-    const { getServiceSupabase } = await import("~~/server/utils/supabase");
-    const supabase = getServiceSupabase();
-    // References are ours (un-guessable PAY_uuid): unknown ones 404 so
-    // this can't be used as a general provider oracle.
-    const { data: payment } = await supabase
-      .from("payments")
-      .select("order_id, reference, status")
-      .eq("provider", "paystack")
-      .eq("reference", body.reference)
-      .maybeSingle();
-    if (!payment) {
-      throw createError({ statusCode: 404, statusMessage: "Transaction not found." });
-    }
-    const { order } = await assertOrderAccess(event, payment.order_id, body.guestToken);
-
-    // Call Paystack API to verify transaction
-    const response = await fetch(`${paystackBase()}/transaction/verify/${body.reference}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${config.paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-
-    if (!data.status) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: data.message || 'Failed to verify payment',
-      });
-    }
-
-    // Bind the provider answer to OUR order before calling it paid:
-    // matching reference, success status, amount >= total (kobo), NGN.
-    const expectedKobo = Math.round(Number(order.total) * 100);
-    const paid =
-      data.data?.status === "success" &&
-      data.data?.reference === payment.reference &&
-      data.data?.currency === "NGN" &&
-      Number.isFinite(Number(data.data?.amount)) &&
-      Number(data.data.amount) >= expectedKobo &&
-      String(data.data?.metadata?.order_id || payment.order_id) === payment.order_id;
-
-    // PAY1: Paystack terminal failure ('failed', 'abandoned') settles a
-    // still-pending row as failed. Provider errors (data.status false)
-    // prove nothing — left alone for retry.
-    if (!paid && data.status === true && payment.status === "pending") {
-      const providerState = String(data.data?.status || "");
-      if (providerState === "failed" || providerState === "abandoned") {
-        await supabase
-          .from("payments")
-          .update({ status: "failed", raw: data.data, updated_at: new Date().toISOString() })
-          .eq("reference", payment.reference)
-          .eq("status", "pending");
-      }
-    }
-
-    return {
-      success: true,
-      paid,
-      orderId: payment.order_id,
-      amount: Number(order.total),
-      currency: "NGN",
-    };
-  } catch (error: any) {
-    console.error('Paystack verification error:', error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Invalid form data',
-        data: error.errors,
-      });
-    }
-    // Preserve inner codes (notably 429) — never mask them as 500.
-    if (error?.statusCode) throw error;
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to verify payment',
-    });
-  }
+export default defineApi(async (event) => {
+  const body = await parseBody(event, schema);
+  enforceRateLimit(event, "pay-verify", {
+    limit: 60, windowSecs: 3600, key: body.reference.slice(0, 64),
+    message: "Too many verification attempts. Try again later.",
+  });
+  return checkPayment(event, "paystack", { reference: body.reference }, body.guestToken);
 });

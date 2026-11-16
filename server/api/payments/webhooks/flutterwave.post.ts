@@ -1,200 +1,42 @@
-import { flutterwaveBase } from "~~/server/utils/paymentProviders";
-import crypto from "crypto";
-import { getServiceSupabase } from "~~/server/utils/supabase";
-import { isTerminalOrderStatus } from "~~/shared/utils/orderStatus";
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
-import { sendOrderPaidEmails } from "~~/server/utils/orderEmail";
+import { apiError, defineApi, enforceRateLimit } from "~~/server/utils/api";
+import { flutterwaveHashValid } from "~~/server/utils/webhookAuth";
+import { settlePayment } from "~~/server/utils/paymentService";
 
-function signaturesEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
-  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
-}
+// POST /api/payments/webhooks/flutterwave — Flutterwave's server calls this.
+//
+// The `verif-hash` header is static and replayable, so it only filters
+// noise; settlePayment re-verifies the transaction with Flutterwave before
+// writing anything. 400/401 for unsigned/forged calls (no retries), 500
+// only for real processing failures (Flutterwave redelivers).
+export default defineApi(async (event) => {
+  enforceRateLimit(event, "webhook-flutterwave", { limit: 300, windowSecs: 3600 });
 
-export default defineEventHandler(async (event) => {
+  let body: any;
   try {
-    const config = useRuntimeConfig();
-    // Webhooks are provider callbacks: throttle floods. Auth failures
-    // return 401/400 (never 500) so the gateway doesn't retry-storm.
-    const ip = getClientIp(event);
-    const { limited } = isRateLimited(`webhook-flutterwave:${ip}`, { limit: 300, windowSecs: 3600 });
-    if (limited) {
-      throw createError({ statusCode: 429, statusMessage: "Too many requests." });
-    }
-
-    let body: any;
-    try {
-      body = await readBody(event);
-    } catch {
-      throw createError({ statusCode: 400, statusMessage: "Invalid JSON" });
-    }
-
-    // Get Flutterwave signature from headers
-    const signature = getHeader(event, "verif-hash");
-
-    if (!signature) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Missing signature",
-      });
-    }
-
-    // Verify webhook signature (hash of the secret, per Flutterwave docs).
-    // NOTE: this header is static and replayable on its own — it only
-    // gates noise. The transaction is independently re-verified with
-    // Flutterwave below before any money state is written.
-    const hash = crypto
-      .createHash("sha256")
-      .update(config.flutterwaveSecretKey)
-      .digest("hex");
-
-    if (!signaturesEqual(hash, signature)) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: "Invalid signature",
-      });
-    }
-
-    // Process webhook event
-    if (body?.event === "charge.completed") {
-      const paymentData = body.data || {};
-      if (typeof paymentData.tx_ref !== "string" || !paymentData.tx_ref) {
-        return { success: true };
-      }
-      const supabase = getServiceSupabase();
-
-      // Read errors throw → 500 → the provider retries later. Never
-      // acknowledge an event we couldn't check.
-      const { data: payment, error: paymentError } = await supabase
-        .from("payments")
-        .select("order_id, status")
-        .eq("reference", paymentData.tx_ref)
-        .maybeSingle();
-      if (paymentError) throw paymentError;
-
-      if (payment) {
-        if (payment.status === "refunded") return { success: true };
-
-        const { data: order, error: orderError } = await supabase
-          .from("orders")
-          .select("id, total, status, payment_status")
-          .eq("id", payment.order_id)
-          .maybeSingle();
-        if (orderError) throw orderError;
-
-        // Idempotency: fully recorded already (payment AND order) → done.
-        // A payment marked paid whose order update failed earlier falls
-        // through so this retry can finish the job.
-        const orderSettled =
-          !order ||
-          order.payment_status === "paid" ||
-          order.payment_status === "refunded" ||
-          isTerminalOrderStatus(order.status);
-        if (payment.status === "paid" && orderSettled) return { success: true };
-
-        // Amount guard: never mark an order paid for less than its total.
-        // Mismatches are logged, not retried.
-        if (
-          !order ||
-          paymentData.currency !== "NGN" ||
-          !Number.isFinite(Number(paymentData.amount)) ||
-          Number(paymentData.amount) < Number(order.total)
-        ) {
-          console.error(
-            `Flutterwave amount mismatch for ${paymentData.tx_ref}: got ${paymentData.amount} ${paymentData.currency}, expected >= ${order?.total}`
-          );
-          return { success: true };
-        }
-
-        // Independent re-verification: the static verif-hash can't stop
-        // replays/forgeries, so confirm with Flutterwave before writing.
-        // paymentData.id is the provider transaction id.
-        if (paymentData.id === undefined || paymentData.id === null) {
-          console.error(`Flutterwave webhook missing transaction id for ${paymentData.tx_ref}`);
-          return { success: true };
-        }
-        const verifyRes = await fetch(
-          `${flutterwaveBase()}/v3/transactions/${paymentData.id}/verify`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${config.flutterwaveSecretKey}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        const verifyData = await verifyRes.json().catch(() => null);
-        // Provider outage / unreadable answer proves nothing either way:
-        // 500 so the provider redelivers later, rather than dropping it.
-        if (!verifyData || verifyRes.status >= 500) {
-          throw new Error("Flutterwave re-verify unavailable");
-        }
-        const verified =
-          verifyData?.status === "success" &&
-          verifyData?.data?.status === "successful" &&
-          String(verifyData?.data?.tx_ref) === paymentData.tx_ref &&
-          verifyData?.data?.currency === "NGN" &&
-          Number(verifyData?.data?.amount) >= Number(order.total);
-        if (!verified) {
-          console.error(`Flutterwave re-verify failed for ${paymentData.tx_ref}`);
-          return { success: true };
-        }
-
-        // Checked writes: a failure throws → 500 → the provider retries,
-        // instead of a silent "ok" that leaves a paid order stuck pending.
-        if (payment.status !== "paid") {
-          await supabase
-            .from("payments")
-            .update({
-              status: "paid",
-              raw: paymentData,
-              paid_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq("reference", paymentData.tx_ref)
-            .throwOnError();
-        }
-
-        // Terminal guard: money truthfully records paid, but a late
-        // payment must never resurrect a completed/cancelled order.
-        // payment_status=paid on a cancelled order is the refund-review
-        // signal for ops — the kitchen state stays untouched.
-        if (isTerminalOrderStatus((order as any)?.status)) {
-          console.error(
-            `Flutterwave late payment for terminal order ${payment.order_id} (${(order as any)?.status}): payment recorded, order state untouched — review for refund.`
-          );
-          return { success: true };
-        }
-
-        if (order.payment_status === "refunded") return { success: true };
-
-        await supabase
-          .from("orders")
-          .update({
-            payment_status: "paid",
-            status: "confirmed",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", payment.order_id)
-          .throwOnError();
-
-        // Order is now paid: email the buyer and the shop. Runs once — a redelivered
-        // webhook returns early above because the order is already paid.
-        // Never throws, so an email problem can't trigger a redelivery.
-        await sendOrderPaidEmails(event, payment.order_id);
-      }
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Flutterwave webhook error:", error?.message || error);
-    // Preserve auth/validation codes — 500 means "retry", reserved for
-    // genuine processing failures.
-    if (error?.statusCode) throw error;
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Webhook processing failed",
-    });
+    body = await readBody(event);
+  } catch {
+    apiError(400, "Invalid JSON");
   }
+  const hash = getHeader(event, "verif-hash");
+  if (!hash) apiError(400, "Missing signature");
+  if (!flutterwaveHashValid(hash, String(useRuntimeConfig(event).flutterwaveSecretKey || ""))) {
+    apiError(401, "Invalid signature");
+  }
+
+  if (body?.event === "charge.completed") {
+    const d = body.data || {};
+    const idOk = d.id !== undefined && d.id !== null && /^\d{1,20}$/.test(String(d.id));
+    if (typeof d.tx_ref === "string" && d.tx_ref && idOk) {
+      const outcome = await settlePayment(event, "flutterwave", {
+        reference: d.tx_ref,
+        transactionId: String(d.id),
+        amountNaira: Number(d.amount),
+        currency: String(d.currency ?? ""),
+      });
+      if (outcome !== "paid" && outcome !== "already-settled") console.info(`[webhook] flutterwave ${d.tx_ref}: ${outcome}`);
+    } else if (typeof d.tx_ref === "string") {
+      console.error(`[webhook] flutterwave ${d.tx_ref}: missing/invalid transaction id`);
+    }
+  }
+  return { success: true };
 });

@@ -1,120 +1,70 @@
 import { z } from "zod";
+import { apiError, defineApi, parseBody } from "~~/server/utils/api";
 import { getSupabase } from "~~/server/utils/supabase";
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
+import { isUserFacingAuthError, throttleByEmail } from "~~/server/utils/authHelpers";
 import { ensureAdminRole } from "~~/server/utils/adminBootstrap";
 import { claimGuestOrders } from "~~/server/utils/orderClaim";
 
-const registerSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  name: z.string().min(2, "Name must be at least 2 characters"),
+// POST /api/auth/register { email, password, name }
+//
+// A duplicate email is treated as a sign-in attempt: it only succeeds with
+// the account's real password (never logs in on email alone), and answers
+// { signedInInstead: true }. New accounts answer
+// { emailConfirmationRequired } — true when Supabase's "Confirm email" is on.
+const schema = z.object({
+  email: z.string({ required_error: "Enter your email address." }).trim().toLowerCase().email("Enter a valid email address.").max(254),
+  password: z.string({ required_error: "Choose a password." }).min(8, "Password must be at least 8 characters.").max(200),
+  name: z.string({ required_error: "Enter your name." }).trim().min(2, "Name must be at least 2 characters.").max(100),
 });
 
-export default defineEventHandler(async (event) => {
-  try {
-    // Abuse protection: 5 registrations per IP per hour. The email is
-    // folded into the key so one IP can't spray many addresses cheaply
-    // and one address can't be sprayed from many IPs without limit.
-    const rawBody = await readBody(event).catch(() => ({}));
-    const rateEmail = String((rawBody as any)?.email || "").toLowerCase().slice(0, 254);
-    const ip = getClientIp(event);
-    const { limited, retryAfterSecs } = isRateLimited(`register:${ip}:${rateEmail}`, {
-      limit: 5,
-      windowSecs: 3600,
-    });
-    if (limited) {
-      setResponseHeader(event, "Retry-After", String(retryAfterSecs));
-      throw createError({
-        statusCode: 429,
-        statusMessage: "Too many registrations. Try again later.",
-      });
-    }
+export default defineApi(async (event) => {
+  await throttleByEmail(event, "register", {
+    limit: 5,
+    windowSecs: 3600,
+    message: "Too many registrations. Try again later.",
+  });
+  const body = await parseBody(event, schema);
+  const supabase = getSupabase(event);
 
-    const body = await readValidatedBody(event, registerSchema.parse);
-    const supabase = getSupabase(event);
+  const { data, error } = await supabase.auth.signUp({
+    email: body.email,
+    password: body.password,
+    options: { data: { name: body.name } },
+  });
 
-    const { data, error } = await supabase.auth.signUp({
+  // Duplicate email arrives two ways depending on settings: a 422
+  // `user_already_exists` (confirm-email OFF) or a user with no identities
+  // (confirm-email ON).
+  const duplicate =
+    (error && ((error as any).status === 422 || (error as any).code === "user_already_exists")) ||
+    (!!data?.user && (data.user.identities?.length ?? 1) === 0);
+
+  if (duplicate) {
+    const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({
       email: body.email,
       password: body.password,
-      options: { data: { name: body.name } },
     });
-
-    // Duplicate email arrives two ways depending on settings: a 422
-    // `user_already_exists` error (confirm-email OFF) or a user with no
-    // identities (confirm-email ON). Either way, fall through to sign-in,
-    // which only succeeds with the correct password (proves ownership —
-    // never logs in on email alone).
-    const isDuplicate =
-      (error && (error.status === 422 || (error as any).code === "user_already_exists")) ||
-      (!!data.user && (data.user.identities?.length ?? 1) === 0);
-
-    if (isDuplicate) {
-      const { data: signInData, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: body.email,
-          password: body.password,
-        });
-      if (signInError || !signInData.user) {
-        throw createError({
-          statusCode: 401,
-          statusMessage:
-            "An account with this email already exists. Is that you? The password you entered is incorrect.",
-        });
-      }
-      await ensureAdminRole(signInData.user.id, signInData.user.email || body.email);
-      await claimGuestOrders(signInData.user);
-      return { success: true, user: signInData.user, signedInInstead: true };
+    if (signInError || !signIn.user) {
+      apiError(401, "An account with this email already exists. Is that you? The password you entered is incorrect.");
     }
-
-    if (error) throw error;
-
-    if (!data.user) {
-      throw createError({ statusCode: 400, statusMessage: "Registration failed" });
-    }
-
-    // Admin bootstrap ONLY for verified addresses: stamping an
-    // unconfirmed signup would hand admin to anyone who types an
-    // allow-listed email without inbox access. The duplicate-email path
-    // above stays as-is — a correct password already proves ownership.
-    if (data.session && (data.user as any)?.email_confirmed_at) {
-      await ensureAdminRole(data.user.id, data.user.email || body.email);
-    }
-
-    // Only claim when a session was actually created (confirm-email OFF).
-    // If email confirmation is required, the user isn't logged in yet —
-    // they'll claim on first real login after clicking the link.
-    if (data.session) {
-      await claimGuestOrders(data.user);
-    }
-
-    // No session here means "Confirm email" is enabled in Supabase Auth
-    // settings — the user must click the email link before signing in.
-    return {
-      success: true,
-      user: data.user,
-      emailConfirmationRequired: !data.session,
-    };
-  } catch (error: any) {
-    console.error("Registration error:", error?.message || error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Invalid form data",
-        data: error.errors,
-      });
-    }
-    if (error?.statusCode) throw error;
-    // Supabase Auth's own 4xx answers (e.g. "Password should be at least
-    // 6 characters") are meant for the user; anything else stays generic.
-    if (error?.name === "AuthApiError" && error?.status >= 400 && error?.status < 500) {
-      throw createError({ statusCode: 400, statusMessage: error.message });
-    }
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: "Registration failed. Please try again.",
-    });
+    await ensureAdminRole(signIn.user.id, signIn.user.email || body.email);
+    await claimGuestOrders(signIn.user);
+    return { success: true, user: signIn.user, signedInInstead: true };
   }
+
+  if (error) {
+    // e.g. "Password is known to be weak" — written for users.
+    if (isUserFacingAuthError(error)) apiError(400, error.message);
+    throw error;
+  }
+  if (!data.user) apiError(400, "Registration failed.");
+
+  // Admin bootstrap and guest-order claiming both require a VERIFIED email:
+  // a session alone (confirm-email OFF) doesn't prove inbox ownership.
+  if (data.session && (data.user as any).email_confirmed_at) {
+    await ensureAdminRole(data.user.id, data.user.email || body.email);
+  }
+  if (data.session) await claimGuestOrders(data.user);
+
+  return { success: true, user: data.user, emailConfirmationRequired: !data.session };
 });

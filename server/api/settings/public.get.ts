@@ -1,12 +1,5 @@
 import { getDeliveryFee } from "~~/server/utils/siteSettings";
 
-// Public storefront value: the delivery fee checkout displays.
-// Single safe row — nothing else in admin_settings is exposed.
-export default defineEventHandler(async () => {
-  try {
-    return { deliveryFee: await getDeliveryFee() };
-  } catch {
-    const { DELIVERY_FEE_FLAT } = await import("~~/shared/utils/pricing");
-    return { deliveryFee: DELIVERY_FEE_FLAT };
-  }
-});
+// GET /api/settings/public → { deliveryFee } — the one setting the
+// storefront needs. Never fails: getDeliveryFee falls back to the default.
+export default defineEventHandler(async () => ({ deliveryFee: await getDeliveryFee() }));

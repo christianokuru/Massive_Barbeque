@@ -1,106 +1,21 @@
-import { flutterwaveBase } from "~~/server/utils/paymentProviders";
-import { z } from 'zod';
-import { isRateLimited } from "~~/server/utils/rateLimit";
-import { getClientIp } from "~~/server/utils/clientIp";
-import { assertOrderAccess } from "~~/server/utils/orderAccess";
+import { z } from "zod";
+import { defineApi, enforceRateLimit, parseBody } from "~~/server/utils/api";
+import { checkPayment } from "~~/server/utils/paymentService";
 
-// Display-only for paid: webhooks are the sole paid writer. One
-// exception (PAY1): a DEFINITIVE provider failure flips a still-pending
-// row to failed — this direction grants nothing. Returns a minimal
-// paid/orderId/amount tuple — never the raw provider payload.
-const flutterwaveVerifySchema = z.object({
-  transaction_id: z.coerce.string().min(1).max(100),
+// POST /api/payments/flutterwave/verify { transaction_id, guestToken? }
+// → { paid, orderId, amount, currency }. Display only — webhooks mark paid.
+// Flutterwave transaction ids are numeric; anything else never reaches the
+// provider (it's placed in the API path).
+const schema = z.object({
+  transaction_id: z.coerce.string().trim().regex(/^\d{1,20}$/, "Transaction not found."),
   guestToken: z.string().max(4096).optional(),
 });
 
-export default defineEventHandler(async (event) => {
-  try {
-    const config = useRuntimeConfig();
-    const body = await readValidatedBody(event, flutterwaveVerifySchema.parse);
-    const ip = getClientIp(event);
-    const { limited } = isRateLimited(`pay-verify:${ip}:${body.transaction_id.slice(0, 64)}`, { limit: 60, windowSecs: 3600 });
-    if (limited) {
-      throw createError({ statusCode: 429, statusMessage: "Too many verification attempts. Try again later." });
-    }
-
-    // Call Flutterwave API to verify transaction
-    const response = await fetch(`${flutterwaveBase()}/v3/transactions/${body.transaction_id}/verify`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${config.flutterwaveSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-
-    if (data.status !== 'success') {
-      throw createError({
-        statusCode: 400,
-        statusMessage: data.message || 'Failed to verify payment',
-      });
-    }
-
-    // Transaction ids are global across merchants — only honor ones WE
-    // initiated (un-guessable tx_ref match), otherwise this endpoint is
-    // a customer-data oracle.
-    const { getServiceSupabase } = await import("~~/server/utils/supabase");
-    const supabase = getServiceSupabase();
-    const { data: known } = await supabase
-      .from("payments")
-      .select("order_id, reference, status")
-      .eq("provider", "flutterwave")
-      .eq("reference", data.data?.tx_ref)
-      .maybeSingle();
-    if (!known) {
-      throw createError({ statusCode: 404, statusMessage: "Transaction not found." });
-    }
-    const { order } = await assertOrderAccess(event, known.order_id, body.guestToken);
-
-    // Bind the provider answer to OUR order before calling it paid.
-    const paid =
-      data.data?.status === "successful" &&
-      data.data?.tx_ref === known.reference &&
-      data.data?.currency === "NGN" &&
-      Number.isFinite(Number(data.data?.amount)) &&
-      Number(data.data.amount) >= Number(order.total);
-
-    // PAY1: Flutterwave terminal failure ('failed', 'cancelled') settles
-    // a still-pending row as failed. Anything else is left for retry.
-    if (!paid && data.status === "success" && known.status === "pending") {
-      const providerState = String(data.data?.status || "");
-      if (providerState === "failed" || providerState === "cancelled") {
-        await supabase
-          .from("payments")
-          .update({ status: "failed", updated_at: new Date().toISOString() })
-          .eq("reference", known.reference)
-          .eq("status", "pending");
-      }
-    }
-
-    return {
-      success: true,
-      paid,
-      orderId: known.order_id,
-      amount: Number(order.total),
-      currency: "NGN",
-    };
-  } catch (error: any) {
-    console.error('Flutterwave verification error:', error);
-
-    if (error instanceof z.ZodError) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Invalid form data',
-        data: error.errors,
-      });
-    }
-    // Preserve inner codes (notably 429) — never mask them as 500.
-    if (error?.statusCode) throw error;
-
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to verify payment',
-    });
-  }
+export default defineApi(async (event) => {
+  const body = await parseBody(event, schema);
+  enforceRateLimit(event, "pay-verify", {
+    limit: 60, windowSecs: 3600, key: body.transaction_id,
+    message: "Too many verification attempts. Try again later.",
+  });
+  return checkPayment(event, "flutterwave", { transactionId: body.transaction_id }, body.guestToken);
 });
